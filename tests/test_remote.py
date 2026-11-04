@@ -11,13 +11,14 @@ from staniorust import iter_csv, read_csv, read_csv_dask, summarize_csv  # noqa:
 
 def test_memory_filesystem_buffered():
     with fsspec.open("memory://staniorust/test.csv", "wb") as file:
-        file.write(b"# method = sample\n# num_warmup = 1\n# save_warmup = 1\n"
-                   b"x,vec.1,vec.2\n0,1,2\n# Adaptation terminated\n3,4,5\n6,7,8\n")
+        file.write(
+            b"# method = sample\n# num_warmup = 1\n# save_warmup = 1\n"
+            b"x,vec.1,vec.2\n0,1,2\n# Adaptation terminated\n3,4,5\n6,7,8\n"
+        )
     header, values = read_csv("memory://staniorust/test.csv")
     assert header == "x,vec.1,vec.2"
     np.testing.assert_array_equal(values[0], [[3, 4, 5], [6, 7, 8]])
-    blocks = list(iter_csv("memory://staniorust/test.csv", chunksize=1,
-                           include_warmup=True))
+    blocks = list(iter_csv("memory://staniorust/test.csv", chunksize=1, include_warmup=True))
     assert [block.warmup for block in blocks] == [True, False, False]
     result = summarize_csv("memory://staniorust/test.csv", columns=["x"], output="dict")
     np.testing.assert_allclose(result["mean"], [4.5])

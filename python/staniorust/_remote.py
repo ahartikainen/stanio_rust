@@ -6,7 +6,6 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-
 from . import _native
 
 _BLOCK_BYTES = 4 * 1024 * 1024
@@ -46,11 +45,17 @@ def _header(stream) -> tuple[list[str], int, int]:
         columns = [name.strip() for name in raw.decode("utf-8").split(",")]
         if len(set(columns)) != len(columns) or not all(columns):
             raise ValueError("invalid or duplicate CSV headers")
-        return columns, stream.tell(), (warmup + thin - 1) // thin if save_warmup and method == "sample" else 0
+        return (
+            columns,
+            stream.tell(),
+            (warmup + thin - 1) // thin if save_warmup and method == "sample" else 0,
+        )
     raise ValueError("CmdStan CSV header was not found")
 
 
-def _complete_blocks(stream, start: int, blocksize: int = _BLOCK_BYTES) -> Iterator[tuple[int, bytes]]:
+def _complete_blocks(
+    stream, start: int, blocksize: int = _BLOCK_BYTES
+) -> Iterator[tuple[int, bytes]]:
     """Yield byte chunks ending at a newline, retaining only the trailing row."""
     unfinished = b""
     position = start
@@ -75,23 +80,33 @@ def _project(header: Sequence[str], columns: Sequence[str] | None) -> tuple[list
     wanted = [columns] if isinstance(columns, str) else list(columns)
     if not wanted:
         raise ValueError("columns cannot be empty")
-    selected = [i for i, col in enumerate(header) if any(
-        col == name or col.startswith((name + ".", name + ":", name + "["))
-        for name in wanted
-    )]
+    selected = [
+        i
+        for i, col in enumerate(header)
+        if any(
+            col == name or col.startswith((name + ".", name + ":", name + "[")) for name in wanted
+        )
+    ]
     for name in wanted:
-        if not any(col == name or col.startswith((name + ".", name + ":", name + "["))
-                   for col in header):
+        if not any(
+            col == name or col.startswith((name + ".", name + ":", name + "[")) for col in header
+        ):
             raise ValueError(f"unknown Stan column or variable: {name}")
     return [header[i] for i in selected], selected
 
 
 def iter_remote(
-    path: str, *, chain: int, chunksize: int, columns: Sequence[str] | None,
-    output: str, include_warmup: bool, rows: slice | None,
+    path: str,
+    *,
+    chain: int,
+    chunksize: int,
+    columns: Sequence[str] | None,
+    output: str,
+    include_warmup: bool,
+    rows: slice | None,
 ) -> Iterator[Any]:
     """Parse file-like blocks in Rust without materializing remote files locally."""
-    from ._api import StanChunk, _frame, _frame_for_matrix
+    from ._api import StanChunk, _frame_for_matrix
 
     with _open(path) as stream:
         header, data_start, warmup_rows = _header(stream)
@@ -111,7 +126,7 @@ def iter_remote(
                 if length == 0:
                     raise RuntimeError("internal remote CSV phase tracking error")
                 draw_start = warm_draw if is_warmup else sample_draw
-                fragment = numeric[pos:pos + length]
+                fragment = numeric[pos : pos + length]
                 pos += length
                 observed += length
                 if is_warmup:
@@ -125,8 +140,17 @@ def iter_remote(
                 emitted += length
                 if left < right:
                     sub = fragment[left:right]
-                    result = sub if output == "numpy" else _frame_for_matrix(
-                        names, sub, output, chain, draw_start + left, is_warmup,
+                    result = (
+                        sub
+                        if output == "numpy"
+                        else _frame_for_matrix(
+                            names,
+                            sub,
+                            output,
+                            chain,
+                            draw_start + left,
+                            is_warmup,
+                        )
                     )
                     yield StanChunk(result, chain, draw_start + left, is_warmup, tuple(names))
                 if requested_to is not None and emitted >= requested_to:
@@ -146,7 +170,10 @@ class RemotePartition:
 
 
 def remote_index(
-    path: str, *, chunksize: int, columns: Sequence[str] | None,
+    path: str,
+    *,
+    chunksize: int,
+    columns: Sequence[str] | None,
     include_warmup: bool,
 ) -> tuple[list[str], list[str], list[int], list[RemotePartition]]:
     """Find cloud byte ranges without decoding any numerical CSV values."""
@@ -178,15 +205,24 @@ def remote_index(
                     sample += 1
                 if is_warmup and not include_warmup:
                     continue
-                if current is not None and (current.warmup != is_warmup or current.rows >= chunksize
-                                            or current.end - current.start >= 32 * 1024 * 1024):
+                if current is not None and (
+                    current.warmup != is_warmup
+                    or current.rows >= chunksize
+                    or current.end - current.start >= 32 * 1024 * 1024
+                ):
                     partitions.append(current)
                     current = None
                 if current is None:
-                    current = RemotePartition(begin, offset + pos, retained, first_draw, 0, is_warmup)
+                    current = RemotePartition(
+                        begin, offset + pos, retained, first_draw, 0, is_warmup
+                    )
                 current = RemotePartition(
-                    current.start, offset + pos, current.row_start,
-                    current.draw_start, current.rows + 1, current.warmup,
+                    current.start,
+                    offset + pos,
+                    current.row_start,
+                    current.draw_start,
+                    current.rows + 1,
+                    current.warmup,
                 )
                 retained += 1
                 if current.rows == chunksize:
@@ -198,8 +234,12 @@ def remote_index(
 
 
 def remote_partition(
-    path: str, part: RemotePartition, names: list[str],
-    indices: list[int], ncols: int, chain: int,
+    path: str,
+    part: RemotePartition,
+    names: list[str],
+    indices: list[int],
+    ncols: int,
+    chain: int,
 ):
     """Fetch one exact remote byte range and parse it with Rust on a Dask worker."""
     from ._api import _frame_for_matrix
@@ -216,7 +256,9 @@ def remote_partition(
 
 
 def summarize_buffered(
-    paths: list[str], columns: list[str] | None, include_warmup: bool,
+    paths: list[str],
+    columns: list[str] | None,
+    include_warmup: bool,
 ) -> dict:
     """Use a native online accumulator for local buffered and cloud streams."""
     from ._api import iter_csv
@@ -224,8 +266,14 @@ def summarize_buffered(
     aggregator = None
     expected = None
     for path in paths:
-        for chunk in iter_csv(path, output="numpy", chunksize=16_384, columns=columns,
-                              include_warmup=include_warmup, engine="buffered"):
+        for chunk in iter_csv(
+            path,
+            output="numpy",
+            chunksize=16_384,
+            columns=columns,
+            include_warmup=include_warmup,
+            engine="buffered",
+        ):
             if expected is None:
                 expected = chunk.columns
                 aggregator = _native.OnlineStats(list(expected))
@@ -241,5 +289,5 @@ def summarize_buffered(
             names, _, _ = _header(stream)
         names, _ = _project(names, columns)
     else:
-        names = _native.CsvStream(os.fspath(Path(first)), columns, include_warmup).columns
+        names = _native.CsvStream(first, columns, include_warmup).columns
     return _native.OnlineStats(names).result()

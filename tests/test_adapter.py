@@ -33,9 +33,15 @@ def adapter(monkeypatch):
             return names, np.array([[1.0], [2.0]])[start:stop]
 
         def summarize(self, columns, warmup, threads, quantiles):
-            return {"column": ["theta"], "count": [2], "nonfinite": [0],
-                    "mean": np.array([1.5]), "variance": np.array([0.5]),
-                    "min": np.array([1.0]), "max": np.array([2.0])}
+            return {
+                "column": ["theta"],
+                "count": [2],
+                "nonfinite": [0],
+                "mean": np.array([1.5]),
+                "variance": np.array([0.5]),
+                "min": np.array([1.0]),
+                "max": np.array([2.0]),
+            }
 
     class FakeStream:
         def __init__(self, path, columns, warmup):
@@ -47,10 +53,7 @@ def adapter(monkeypatch):
             if self.done:
                 return None
             self.done = True
-            if columnar:
-                values = {"theta": np.array([1.0, 2.0])}
-            else:
-                values = np.array([[1.0], [2.0]])
+            values = {"theta": np.array([1.0, 2.0])} if columnar else np.array([[1.0], [2.0]])
             return values, 0, False
 
     native.MappedCsv = FakeReader

@@ -145,11 +145,17 @@ def _frame(
 
 
 def _frame_for_matrix(
-    names: Sequence[str], array: np.ndarray, output: Literal["pandas", "polars"],
-    chain: int, draw_start: int, warmup: bool,
+    names: Sequence[str],
+    array: np.ndarray,
+    output: Literal["pandas", "polars"],
+    chain: int,
+    draw_start: int,
+    warmup: bool,
 ) -> Any:
     """Wrap a row-major matrix when no columnar Rust path is available."""
-    return _frame({name: array[:, i] for i, name in enumerate(names)}, output, chain, draw_start, warmup)
+    return _frame(
+        {name: array[:, i] for i, name in enumerate(names)}, output, chain, draw_start, warmup
+    )
 
 
 def _combine_arrays(chunks: Iterator[StanChunk], width: int, limit_bytes: int | None) -> np.ndarray:
@@ -168,8 +174,11 @@ def _combine_arrays(chunks: Iterator[StanChunk], width: int, limit_bytes: int | 
 
 
 def _read_numpy_buffered(
-    paths: list[str], columns: list[str] | None, include_warmup: bool,
-    rows: slice | None, limit_bytes: int | None,
+    paths: list[str],
+    columns: list[str] | None,
+    include_warmup: bool,
+    rows: slice | None,
+    limit_bytes: int | None,
 ) -> tuple[str, np.ndarray]:
     """Buffered fallback for cloud or mutable files, reading one chain at a time."""
     names: tuple[str, ...] | None = None
@@ -188,12 +197,14 @@ def _read_numpy_buffered(
             names = tuple(available)
         elif names != tuple(available):
             raise ValueError("selected CSV headers differ across chains")
-        parts = iter_csv(path, columns=columns, include_warmup=include_warmup,
-                         output="numpy", engine="buffered")
+        parts = iter_csv(
+            path, columns=columns, include_warmup=include_warmup, output="numpy", engine="buffered"
+        )
         offset = 0
-        def selected_parts() -> Iterator[StanChunk]:
+
+        def selected_parts(source: Iterator[StanChunk]) -> Iterator[StanChunk]:
             nonlocal names, offset
-            for part in parts:
+            for part in source:
                 if names is None:
                     names = part.columns
                 elif names != part.columns:
@@ -203,11 +214,17 @@ def _read_numpy_buffered(
                 hi = length if stop is None else min(length, stop - offset)
                 offset += length
                 if lo < hi:
-                    yield StanChunk(part.data[lo:hi], part.chain, part.draw_start + lo,
-                                    part.warmup, part.columns)
+                    yield StanChunk(
+                        part.data[lo:hi],
+                        part.chain,
+                        part.draw_start + lo,
+                        part.warmup,
+                        part.columns,
+                    )
                 if stop is not None and offset >= stop:
                     break
-        arrays.append(_combine_arrays(selected_parts(), len(names), limit_bytes))
+
+        arrays.append(_combine_arrays(selected_parts(parts), len(names), limit_bytes))
     lengths = [len(arr) for arr in arrays]
     if len(set(lengths)) > 1:
         raise ValueError(f"chains have unequal selected draw counts: {lengths}")
@@ -294,10 +311,19 @@ def read_csv(
         return heading, values
     from itertools import chain
 
-    frames = (part.data for part in iter_csv(
-        files, chunksize=16_384, columns=selected, include_warmup=include_warmup,
-        output=output, engine=engine, threads=threads, rows=rows,
-    ))
+    frames = (
+        part.data
+        for part in iter_csv(
+            files,
+            chunksize=16_384,
+            columns=selected,
+            include_warmup=include_warmup,
+            output=output,
+            engine=engine,
+            threads=threads,
+            rows=rows,
+        )
+    )
     first = next(frames, None)
     if output == "pandas":
         import pandas as pd
@@ -351,35 +377,50 @@ class StanReader:
         return _resolve_names(self.header, names)
 
     def partitions(
-        self, *, chunksize: int = 16_384, blocksize: int = 32 * 1024 * 1024,
+        self,
+        *,
+        chunksize: int = 16_384,
+        blocksize: int = 32 * 1024 * 1024,
         include_warmup: bool = False,
     ) -> list[tuple[int, int, int, int, int, bool]]:
         """Return byte-aligned partitions with row and warmup metadata."""
         return self._reader.partitions(include_warmup, chunksize, blocksize)
 
     def read(
-        self, *, rows: slice | None = None, columns: Sequence[str] | None = None,
-        include_warmup: bool = False, threads: int = 0, reshape: bool = False,
+        self,
+        *,
+        rows: slice | None = None,
+        columns: Sequence[str] | None = None,
+        include_warmup: bool = False,
+        threads: int = 0,
+        reshape: bool = False,
     ) -> tuple[str, np.ndarray] | dict[str, np.ndarray]:
         """Read the selected row range into one two-dimensional NumPy array."""
         start, stop = _bounds(rows)
-        names, values = self._reader.read(_selected(columns), include_warmup,
-                                          start, stop, threads)
+        names, values = self._reader.read(_selected(columns), include_warmup, start, stop, threads)
         if reshape:
             return _native.reshape(names, values)
         return ",".join(names), values
 
     def summarize(
-        self, *, columns: Sequence[str] | None = None,
-        include_warmup: bool = False, threads: int = 0,
+        self,
+        *,
+        columns: Sequence[str] | None = None,
+        include_warmup: bool = False,
+        threads: int = 0,
         quantiles: Sequence[float] | None = None,
         output: Literal["pandas", "dict"] = "pandas",
     ) -> Any:
         """Compute Rust-side online statistics without keeping draws in RAM."""
         return _summary_output(
-            self._reader.summarize(_selected(columns), include_warmup,
-                                   threads, list(quantiles) if quantiles is not None else None),
-            quantiles, output,
+            self._reader.summarize(
+                _selected(columns),
+                include_warmup,
+                threads,
+                list(quantiles) if quantiles is not None else None,
+            ),
+            quantiles,
+            output,
         )
 
 
@@ -389,13 +430,18 @@ def _resolve_names(header: Sequence[str], requested: Sequence[str] | None) -> li
         return list(header)
     selected = _selected(requested)
     assert selected is not None
-    found = [name for name in header if any(
-        name == base or name.startswith((base + ".", base + ":", base + "["))
-        for base in selected
-    )]
+    found = [
+        name
+        for name in header
+        if any(
+            name == base or name.startswith((base + ".", base + ":", base + "["))
+            for base in selected
+        )
+    ]
     for base in selected:
-        if not any(name == base or name.startswith((base + ".", base + ":", base + "["))
-                   for name in header):
+        if not any(
+            name == base or name.startswith((base + ".", base + ":", base + "[")) for name in header
+        ):
             raise ValueError(f"unknown Stan column or variable: {base}")
     return found
 
@@ -478,7 +524,8 @@ def iter_csv(
             source_indices = [reader.header.index(name) for name in names]
             max_rows = max(1, min(chunksize, (32 * 1024 * 1024) // (8 * max(1, len(names)))))
             for begin, end, row_start, draw_start, count, warmup in reader.partitions(
-                chunksize=max_rows, include_warmup=include_warmup,
+                chunksize=max_rows,
+                include_warmup=include_warmup,
             ):
                 left = max(start, row_start)
                 right = min(row_start + count, stop if stop is not None else row_start + count)
@@ -486,11 +533,22 @@ def iter_csv(
                     continue
                 if output == "numpy" or left != row_start or right != row_start + count:
                     _, values = reader.read(
-                        rows=slice(left, right), columns=selected,
-                        include_warmup=include_warmup, threads=threads,
+                        rows=slice(left, right),
+                        columns=selected,
+                        include_warmup=include_warmup,
+                        threads=threads,
                     )
-                    data = values if output == "numpy" else _frame_for_matrix(
-                        names, values, output, chain, draw_start + left - row_start, warmup,
+                    data = (
+                        values
+                        if output == "numpy"
+                        else _frame_for_matrix(
+                            names,
+                            values,
+                            output,
+                            chain,
+                            draw_start + left - row_start,
+                            warmup,
+                        )
                     )
                 else:
                     values = _native.mmap_read_partition(
@@ -507,9 +565,15 @@ def iter_csv(
                 full_header = remote_header
             elif remote_header != full_header:
                 raise ValueError(f"CSV headers differ across chains: {path}")
-            yield from iter_remote(path, chain=chain, chunksize=chunksize,
-                                   columns=selected, output=output,
-                                   include_warmup=include_warmup, rows=rows)
+            yield from iter_remote(
+                path,
+                chain=chain,
+                chunksize=chunksize,
+                columns=selected,
+                output=output,
+                include_warmup=include_warmup,
+                rows=rows,
+            )
         else:
             source = _native.CsvStream(path, selected, include_warmup)
             if full_header is None:
@@ -532,8 +596,10 @@ def iter_csv(
                     values = {name: array[left:right] for name, array in values.items()}
                 else:
                     values = values[left:right]
-                result = values if output == "numpy" else _frame(
-                    values, output, chain, draw_start + left, warmup
+                result = (
+                    values
+                    if output == "numpy"
+                    else _frame(values, output, chain, draw_start + left, warmup)
                 )
                 yield StanChunk(result, chain, draw_start + left, warmup, names)
                 if stop is not None and offset >= stop:
@@ -614,7 +680,9 @@ def summarize_csv(
     from ._remote import summarize_buffered
 
     return _summary_output(
-        summarize_buffered(files, selected, include_warmup), qs, output,
+        summarize_buffered(files, selected, include_warmup),
+        qs,
+        output,
     )
 
 
@@ -685,6 +753,9 @@ def read_csv_dask(
     from ._dask import read_csv_dask as implementation
 
     return implementation(
-        _paths(paths), chunksize=chunksize, columns=_selected(columns),
-        include_warmup=include_warmup, engine=engine,
+        _paths(paths),
+        chunksize=chunksize,
+        columns=_selected(columns),
+        include_warmup=include_warmup,
+        engine=engine,
     )

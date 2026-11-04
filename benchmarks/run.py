@@ -99,8 +99,14 @@ def budgeted_free_ram() -> int:
 
 
 def plan(
-    rows: list[int], columns: list[int], *, ram_bytes: int, disk_bytes: int,
-    max_fixture_bytes: int, ram_fraction: float, disk_fraction: float,
+    rows: list[int],
+    columns: list[int],
+    *,
+    ram_bytes: int,
+    disk_bytes: int,
+    max_fixture_bytes: int,
+    ram_fraction: float,
+    disk_fraction: float,
 ) -> tuple[list[Case], list[dict]]:
     """Choose feasible combinations before allocating or creating files.
 
@@ -165,7 +171,8 @@ def write_fixture(path: Path, case: Case) -> int:
         # A few numerical formats, signs and exponents, repeated deterministically.
         words = (
             f"{((col % 19) - 9) * (1 + variant / 5):.6g}"
-            if col % 17 else f"{(variant + 1) * 1.03125e-6:.8e}"
+            if col % 17
+            else f"{(variant + 1) * 1.03125e-6:.8e}"
             for col in range(case.columns)
         )
         row_variants.append((",".join(words) + "\n").encode("ascii"))
@@ -239,13 +246,28 @@ def run_worker(path: Path, method: str, threads: int) -> dict:
 
 
 def subprocess_benchmark(
-    path: Path, method: str, threads: int, timeout_s: int,
+    path: Path,
+    method: str,
+    threads: int,
+    timeout_s: int,
 ) -> dict:
     """Measure wall-clock time and child RSS without mixing reader processes."""
-    cmd = [sys.executable, "-m", "benchmarks.run", "--worker", "--path", str(path),
-           "--method", method, "--threads", str(threads)]
+    cmd = [
+        sys.executable,
+        "-m",
+        "benchmarks.run",
+        "--worker",
+        "--path",
+        str(path),
+        "--method",
+        method,
+        "--threads",
+        str(threads),
+    ]
     started = time.perf_counter()
-    proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(
+        cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     monitor = psutil.Process(proc.pid)
     peak = 0
     timed_out = False
@@ -264,14 +286,23 @@ def subprocess_benchmark(
     if timed_out:
         return {"status": "timeout", "time_s": elapsed, "peak_rss_mib": peak / 2**20}
     if proc.returncode:
-        return {"status": "failed", "time_s": elapsed, "peak_rss_mib": peak / 2**20,
-                "error": stderr.strip()[-1500:]}
+        return {
+            "status": "failed",
+            "time_s": elapsed,
+            "peak_rss_mib": peak / 2**20,
+            "error": stderr.strip()[-1500:],
+        }
     try:
         result = json.loads(stdout.strip().splitlines()[-1])
     except (IndexError, json.JSONDecodeError):
         return {"status": "failed", "error": "worker did not return JSON", "time_s": elapsed}
-    return {"status": "ok", "time_s": elapsed, "peak_rss_mib": peak / 2**20,
-            "parse_time_s": result["elapsed_s"], "result_shape": result["shape"]}
+    return {
+        "status": "ok",
+        "time_s": elapsed,
+        "peak_rss_mib": peak / 2**20,
+        "parse_time_s": result["elapsed_s"],
+        "result_shape": result["shape"],
+    }
 
 
 def render_plots(records: list[dict], destination: Path) -> list[Path]:
@@ -294,8 +325,9 @@ def render_plots(records: list[dict], destination: Path) -> list[Path]:
         ):
             fig, ax = plt.subplots(figsize=(10, 6))
             for cols in sorted({r["columns"] for r in subset}):
-                series = sorted((r for r in subset if r["columns"] == cols),
-                                key=lambda r: r["rows"])
+                series = sorted(
+                    (r for r in subset if r["columns"] == cols), key=lambda r: r["rows"]
+                )
                 xs = [r["rows"] for r in series]
                 ys = [r[metric] for r in series]
                 if xs and all(x > 0 for x in ys):
@@ -314,7 +346,9 @@ def render_plots(records: list[dict], destination: Path) -> list[Path]:
 
 
 def _args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument("--profile", choices=("quick", "full"), default="quick")
     parser.add_argument("--rows", type=int, nargs="+", default=list(ROWS))
     parser.add_argument("--cols", type=int, nargs="+", default=list(COLS))
@@ -352,9 +386,15 @@ def main(argv: list[str] | None = None) -> None:
     free_ram = budgeted_free_ram()
     free_disk = shutil.disk_usage(args.output).free
     max_file = args.max_file_mib or (256 if args.profile == "quick" else 4096)
-    allowed, skipped = plan(args.rows, args.cols, ram_bytes=free_ram, disk_bytes=free_disk,
-                            max_fixture_bytes=max_file * 2**20,
-                            ram_fraction=args.ram_fraction, disk_fraction=args.disk_fraction)
+    allowed, skipped = plan(
+        args.rows,
+        args.cols,
+        ram_bytes=free_ram,
+        disk_bytes=free_disk,
+        max_fixture_bytes=max_file * 2**20,
+        ram_fraction=args.ram_fraction,
+        disk_fraction=args.disk_fraction,
+    )
     max_cases = args.max_cases or (28 if args.profile == "quick" else len(allowed))
     # Round-robin across sample counts: quick runs must include long files,
     # not only the first few short-row combinations.
@@ -383,30 +423,49 @@ def main(argv: list[str] | None = None) -> None:
         "methods": args.methods,
     }
     print(json.dumps(report, indent=2))
-    (args.output / "plan.json").write_text(json.dumps({
-        "resources": report, "cases": [asdict(c) for c in allowed], "skips": skipped,
-    }, indent=2))
+    (args.output / "plan.json").write_text(
+        json.dumps(
+            {
+                "resources": report,
+                "cases": [asdict(c) for c in allowed],
+                "skips": skipped,
+            },
+            indent=2,
+        )
+    )
     if args.dry_run:
         for case in allowed:
-            print(f"{case.rows:>10,} draws x {case.columns:>7,} cols | "
-                  f"{case.estimated_csv_bytes / 2**20:>8.1f} MiB | {case.shape}")
+            print(
+                f"{case.rows:>10,} draws x {case.columns:>7,} cols | "
+                f"{case.estimated_csv_bytes / 2**20:>8.1f} MiB | {case.shape}"
+            )
         return
     results_file.write_text("", encoding="utf-8")
     all_results = []
     with tempfile.TemporaryDirectory(prefix="staniorust-bench-") as work:
         for case_number, case in enumerate(allowed, 1):
             path = Path(work) / "chain.csv"
-            print(f"Case {case_number}/{len(allowed)}: {case.rows:,} draws x "
-                  f"{case.columns:,} columns", flush=True)
+            print(
+                f"Case {case_number}/{len(allowed)}: {case.rows:,} draws x "
+                f"{case.columns:,} columns",
+                flush=True,
+            )
             actual_size = write_fixture(path, case)
             for method in args.methods:
-                record = {**asdict(case), "method": method, "input_bytes": actual_size,
-                          **subprocess_benchmark(path, method, args.threads, args.timeout)}
+                record = {
+                    **asdict(case),
+                    "method": method,
+                    "input_bytes": actual_size,
+                    **subprocess_benchmark(path, method, args.threads, args.timeout),
+                }
                 all_results.append(record)
                 with results_file.open("a", encoding="utf-8") as target:
                     target.write(json.dumps(record) + "\n")
-                print(f"  {method:>25}: {record['status']:<8} "
-                      f"{record.get('parse_time_s', float('nan')):.4f} s", flush=True)
+                print(
+                    f"  {method:>25}: {record['status']:<8} "
+                    f"{record.get('parse_time_s', float('nan')):.4f} s",
+                    flush=True,
+                )
             if not args.keep_files:
                 path.unlink(missing_ok=True)
             else:
