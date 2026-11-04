@@ -15,13 +15,15 @@
 | Task | Function | Behavior |
 | --- | --- | --- |
 | Read CmdStan samples | `read_csv()` | float64 NumPy `(chains, draws, columns)` or pandas/Polars |
-| Reconstruct Stan arrays | `read_csv(..., reshape=True)` | Rust-side grouping by 1-based element indices |
+| Reconstruct Stan arrays | `read_csv(..., reshape=True)` | Rust for real-valued arrays; StanIO-compatible NumPy extraction for complex values and tuples |
 | Select specific draws | `read_csv(..., rows=slice(...))` | Only requested numeric values are decoded after row indexing |
 | Repeated random access | `open_csv()` | Cache row-aligned byte partitions in memory; no sidecar files |
 | Chunked CSV reads | `iter_csv()` | One chain/phase per bounded block |
 | Lazy Dask | `read_csv_dask()` | Independently fetched local/cloud byte partitions |
 | Streaming statistics | `summarize_csv()` | Mean, variance, min, max, finite count; approximate quantiles |
 | Stan input JSON | `read_json()` | serde_json with optional selected keys and numeric NumPy arrays |
+| Stan-compatible JSON output | `dump_stan_json()`, `write_stan_json()` | Bool, NumPy, pandas, complex and nested tuple serialization |
+| StanIO parameter metadata | `parse_header()`, `stan_variables()` | Public `Variable`/`VariableType`, typed nested tuple reconstruction |
 | Cloud | `engine="auto"` | mmap local completed files; fsspec buffered cloud reads |
 | Benchmarks | `python -m benchmarks.run` | pandas, Polars, StanIO, NumPy and three Rust strategies |
 
@@ -43,8 +45,8 @@ On Windows, the default Rust target expects the Microsoft C/C++ toolchain; alter
 **Format and check Python with Ruff:**
 
 ```cmd
-ruff format python tests benchmarks examples
-ruff check python tests benchmarks examples
+ruff format python tests benchmarks examples scripts
+ruff check python tests benchmarks examples scripts
 ```
 
 Rust source formatting: `cargo fmt --all`. The CI workflow runs Ruff and the native integration tests on Linux and Windows.
@@ -116,6 +118,49 @@ values = sio.read_json("data.json", keys=["N", "X"], arrays="numpy")
 # mappings remain dictionaries; numeric rectangular arrays become float64.
 ```
 
+
+## Compatibility with stan-dev/stanio
+
+The public `staniorust` package provides `Variable`, `VariableType`,
+`parse_header`, `stan_variables`, `dump_stan_json`, and `write_stan_json`
+for StanIO-style use. It also provides the `staniorust.csv`,
+`staniorust.reshape`, and `staniorust.json` submodules.
+
+**Run the *unaltered* upstream test suite** against this package (Rust
+extension must be installed):
+
+```cmd
+git clone --depth 1 https://github.com/stan-dev/stanio.git upstream-stanio
+python scripts/run_upstream_stanio_tests.py upstream-stanio
+```
+
+The runner aliases `stanio` imports to `staniorust` in memory; no upstream
+tests, fixtures, or installed StanIO package need to be patched. Its CI job
+clones StanIO and runs these tests. See `.github/workflows/ci.yml`.
+
+**Validation:** the compatibility-focused pure-Python tests can run without
+Rust. Full upstream compatibility **has not yet been established** until
+the native extension is built and the upstream fixture suite succeeds.
+
+### Writing Stan JSON
+
+```python
+import staniorust as sio
+
+sio.write_stan_json("data.json", {"N": 3, "z": 1 + 2j, "pair": (1, [2, 3])})
+serialized = sio.dump_stan_json({"flag": True})  # flag becomes 1
+```
+
+### Reconstructing complex or tuple parameters
+
+```python
+header, draws = sio.read_csv("chain.csv")
+params = sio.parse_header(header)
+values = sio.stan_variables(params, draws, object=False)
+# Complex parameters become complex128; tuples become structured NumPy dtypes.
+# Set object=True for Python tuple objects instead.
+```
+
 ## mmap + Rayon architecture
 
 1. Read initial CmdStan comments and header to determine column names and saved warmup count.
@@ -138,7 +183,7 @@ The mmap provides efficient **input access, not zero-copy float64 arrays**. ASCI
 - Each numeric record is checked for the expected field count, even when projecting columns.
 - Rows are zero-based *retained* row numbers per chain; `rows=slice(a, b)` is `[a, b)`.
 - NumPy multi-chain eager output requires equal retained row counts; chunked DataFrame output does not.
-- Tuple slots (`bar:1`, `bar:2.1`) and complex components (`z.real`, `z.imag`) are available as flat columns and separate named arrays, **but are not reconstructed into a Python tuple or complex dtype**.
+- Tuple slots (`bar:1`, `bar:2.1`) and complex components (`z.real`, `z.imag`) are available as flat columns. When `reshape=True`, a NumPy compatibility path reconstructs them as typed Python tuple or complex arrays. Ordinary numeric array reshaping remains native Rust.
 - Profiling CSVs with string columns are **not supported** by this numeric CSV reader.
 
 ## Memory behavior and limits
@@ -160,7 +205,7 @@ For eager NumPy `read_csv` output, the API defaults to a limit of **65% of curre
 1. **Native build unverified in this authoring environment.** Treat this as the first fully specified source release candidate, not a verified wheel.
 2. Cloud readers are *bounded for CSV*, but `read_json()` on cloud input currently fetches the full JSON byte document before handing it to Rust. Local JSON uses a streaming serde deserializer and can skip unselected top-level keys, but retains each selected JSON value in memory.
 3. Dask indexing must scan the file once. Cloud indexing scans line boundaries using Python; local mmap indexing is in Rust.
-4. Tuple/complex structured reshaping, Pathfinder/variational-specific interpretation and profiling CSV text fields are not reconstructed.
+4. Complex and tuple types are reconstructed in NumPy (not yet in Rust); Pathfinder/variational-specific interpretation and profiling CSV text fields remain unsupported.
 5. `P²` streaming quantiles are **approximate** and sequential. Moments use finite values only, with nonfinite values counted separately.
 6. Remote backends require their own `fsspec` dependencies and credentials. Concurrent mutation of a cloud object can invalidate range offsets.
 7. Benchmark timings are hardware-, filesystem-, and version-dependent. No Rust speedup is claimed in this source release.

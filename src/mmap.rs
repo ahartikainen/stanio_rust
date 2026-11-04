@@ -82,7 +82,7 @@ fn trim(mut bytes: &[u8]) -> &[u8] {
 }
 
 fn header(bytes: &[u8]) -> PyResult<Header> {
-    let mut n_warmup = 0;
+    let mut n_warmup = 0_usize;
     let mut thin = 1_usize;
     let mut save_warmup = false;
     let mut method = String::new();
@@ -99,7 +99,7 @@ fn header(bytes: &[u8]) -> PyResult<Header> {
                 let v = val.split_whitespace().next().unwrap_or("");
                 meta.push((k.to_string(), v.to_string()));
                 match k {
-                    "num_warmup" => n_warmup = v.parse().unwrap_or(0),
+                    "num_warmup" => n_warmup = v.parse::<usize>().unwrap_or(0),
                     "thin" => thin = v.parse::<usize>().unwrap_or(1).max(1),
                     "save_warmup" => save_warmup = v == "1" || v == "true",
                     "method" => method = v.to_string(),

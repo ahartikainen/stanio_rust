@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "stanio_rust"
-version = "0.2.0"
+version = "0.2.1"
 description = "Fast low-memory CmdStan CSV and Stan JSON I/O using Rust, mmap and parallel parsing"
 readme = "README.md"
 requires-python = ">=3.10"

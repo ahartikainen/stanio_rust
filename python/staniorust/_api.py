@@ -234,6 +234,19 @@ def _read_numpy_buffered(
     return ",".join(names), np.stack(arrays, axis=0)
 
 
+def _reshape_stan_values(names: Sequence[str], values: np.ndarray) -> dict[str, np.ndarray]:
+    """Use the Rust fast path for real arrays and preserve StanIO exotic types.
+
+    CmdStan complex/tuple columns require recursive typed extraction, which is
+    implemented by the compatibility layer until a native equivalent exists.
+    """
+    if any(":" in name or name.endswith((".real", ".imag")) for name in names):
+        from .reshape import parse_header, stan_variables
+
+        return stan_variables(parse_header(",".join(names)), values)
+    return _native.reshape(list(names), values)
+
+
 def read_csv(
     paths: PathInput,
     *,
@@ -301,13 +314,13 @@ def read_csv(
                 files, selected, include_warmup, threads, start, stop, limits
             )
             if reshape:
-                return _native.reshape(names, values)
+                return _reshape_stan_values(names, values)
             return ",".join(names), values
         if any(_engine(path, engine) != "buffered" for path in files):
             raise ValueError("cannot mix mmap and remote buffered paths in one eager read")
         heading, values = _read_numpy_buffered(files, selected, include_warmup, rows, limits)
         if reshape:
-            return _native.reshape(heading.split(","), values)
+            return _reshape_stan_values(heading.split(","), values)
         return heading, values
     from itertools import chain
 
@@ -399,7 +412,7 @@ class StanReader:
         start, stop = _bounds(rows)
         names, values = self._reader.read(_selected(columns), include_warmup, start, stop, threads)
         if reshape:
-            return _native.reshape(names, values)
+            return _reshape_stan_values(names, values)
         return ",".join(names), values
 
     def summarize(

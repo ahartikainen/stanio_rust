@@ -13,8 +13,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install ruff
-      - run: ruff check python tests benchmarks examples
-      - run: ruff format --check python tests benchmarks examples
+      - run: ruff check python tests benchmarks examples scripts
+      - run: ruff format --check python tests benchmarks examples scripts
 
   test:
     strategy:
@@ -34,3 +34,19 @@ jobs:
       - run: python -m pytest -q
       - run: cargo fmt --all
       - run: cargo clippy --all-targets
+
+  upstream-stanio:
+    name: Original stan-dev/stanio tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: python -m pip install --upgrade pip maturin
+      - run: python -m pip install -e '.[test]'
+      # Keep upstream test sources and the original test/data fixtures intact.
+      # Pin to a specific commit SHA for reproducible CI if desired.
+      - run: git clone --depth 1 https://github.com/stan-dev/stanio.git upstream-stanio
+      - run: python scripts/run_upstream_stanio_tests.py upstream-stanio
