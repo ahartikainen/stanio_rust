@@ -187,6 +187,32 @@ values = sio.stan_variables(params, draws, object=False)
 
 ## mmap + Rayon architecture
 
+The diagram below is **Mermaid**, so GitHub renders it automatically in
+this README; no image export or GitHub Action is required.
+
+```mermaid
+flowchart TD
+    A["CmdStan CSV / completed output"] --> B{"Local immutable file?"}
+    B -->|Yes| C["Read-only mmap (memmap2)"]
+    B -->|Cloud or active file| D["Buffered / range-based reading"]
+    C --> E["Scan metadata and newline-aligned row boundaries"]
+    E --> F{"Requested operation"}
+    F -->|Read all or selected draws| G["Sparse row index + row-aligned partitions"]
+    G --> H["Rayon worker threads: parse numeric columns"]
+    H --> I["Write disjoint numeric output slices"]
+    D --> J["Sequential chunk parser"]
+    J --> I
+    F -->|Streaming summary| K["Per-worker Welford statistics"]
+    K --> L["Merge statistics, no full draws matrix"]
+    I --> M["NumPy / pandas / Polars / Stan reshape"]
+    F -->|Lazy Dask| N["Task graph of independent indexed ranges"]
+    N --> H
+```
+
+The memory map avoids an intermediate copy of CSV **input bytes**; numeric
+output still requires decoding text into float64 values. The algorithms are
+correctness-checked against CmdStan and StanIO fixtures before benchmarking.
+
 1. Read initial CmdStan comments and header to determine column names and saved warmup count.
 2. Open a **read-only mmap** of a complete, immutable local CSV file.
 3. Scan newline boundaries, omitting comments, and build *sparse* row-aligned partitions (default up to 16,384 rows or 32 MiB each).
@@ -245,65 +271,41 @@ python -m benchmarks.run --profile quick --publish  # also update README gallery
 python -m benchmarks.run --profile full --ram-fraction 0.4 --max-file-mib 8192
 python -m benchmarks.run --plot-only
 python -m benchmarks.publish  # versioned gallery + performance summary in README
+python -m benchmarks.thread_sweep --dry-run
+python -m benchmarks.thread_sweep --profile quick --threads 1 2 4 8 16
+python -m benchmarks.thread_sweep --profile full --all-threads --dry-run
+python -m benchmarks.thread_sweep --profile quick --publish
 ```
 
 Results are saved under `benchmark_results/` as JSON Lines, a `summary.csv` of repeated measurements, and standalone plots. Benchmarking now defaults to seven measured runs in a randomized balanced order plus one warmup per method/case; figures show the median and interquartile spread. Run `python -m benchmarks.publish` to generate a versioned, clickable README gallery of only sufficiently repeated measurements. Each plot uses **draw count on the x-axis, parse time on the y-axis, and a separate curve for each parameter-column count**. Both axes are logarithmic. A separate plot per implementation avoids overloading one legend with both algorithms and widths.
 
-<!-- BENCHMARKS:START -->
-### Measured performance comparisons
+### Thread scaling and throughput across CSV file shapes
 
-**Run:** `20261104T142049Z-b0c237` · **Minimum successful repeats:** 3 · **Scheduled repeats:** 15 · **Warmups:** 1 · **Random seed:** 20261104
+For fair comparisons, configure **the same worker count** for Rust parallel
+mmap and Polars. Run the pandas, StanIO, NumPy and Rust buffered baselines once
+per file shape; they do not have a comparable thread-count knob here. The
+thread sweep defaults to **1, 2, 4, 8 and 16 threads**, one warmup and seven
+measured repetitions, using randomized/balanced execution order.
 
-**Environment:** Windows-11-10.0.26300-SP0, Python 3.12.13, 8 configured Rust threads.
+```cmd
+python -m benchmarks.thread_sweep --dry-run
+python -m benchmarks.thread_sweep --profile quick --threads 1 2 4 8 16 --repetitions 7
+python -m benchmarks.plot_threads --format png svg
+python -m benchmarks.publish_threads
+```
 
-Times are the median of independent subprocess runs; shaded bands show the interquartile range (25th–75th percentile). Only measured configurations with enough successful runs are shown. These are warm-cache-oriented measurements, **not** cold-disk benchmarks.
+Figures show **throughput versus configured threads**, **throughput versus
+actual CSV size** at each fixed column count, and **throughput versus column
+count** at fixed total numeric values. File size is measured from generated
+CSV bytes, not inferred from float64 payload size. Use
+`--all-threads` to test all 16 thread counts once the coarse sweep identifies
+where performance stops improving. The full sweep is long; use `--dry-run` to
+inspect its resource and subprocess budgets before starting it.
 
-[Methodology and environment](docs/benchmarks/runs/20261104T142049Z-b0c237/METHOD.md) · [All summary results (CSV)](docs/benchmarks/runs/20261104T142049Z-b0c237/summary.csv)
-
-| Fixed columns — time vs samples | Fixed samples — time vs columns |
-|:---:|:---:|
-| <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png" width="420" alt="time_vs_samples_cols_100"></a> | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png" width="420" alt="time_vs_columns_samples_1000"></a> |
-
-#### Representative results relative to pandas
-
-| Samples | Columns | Fastest method | Median seconds | Speedup vs pandas |
-|---:|---:|---|---:|---:|
-| 1 | 100,000 | `numpy_loadtxt` | 0.01028 | 89.28× |
-| 10 | 100,000 | `numpy_loadtxt` | 0.06573 | 14.11× |
-| 1,000,000 | 1 | `pandas` | 0.04708 | 1.00× |
-| 100 | 100,000 | `numpy_loadtxt` | 0.6214 | 1.85× |
-| 1,000 | 10,000 | `pandas` | 0.3907 | 1.00× |
-| 100,000 | 100 | `pandas` | 0.3807 | 1.00× |
-| 10,000,000 | 1 | `pandas` | 0.4476 | 1.00× |
-
-Speedup is pandas median time divided by the fastest method's median time for the **same file shape**. Cases with pandas timing below 10 ms are omitted from this table to avoid misleading microbenchmarks.
-
-<details>
-<summary>View all 11 benchmark comparison plots</summary>
-
-**Time vs sample count (fixed number of columns)**
-
-| Columns | Plot |
-|---:|:---|
-| 1 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_1.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_1.png" width="420" alt="time_vs_samples_cols_1"></a> |
-| 100 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png" width="420" alt="time_vs_samples_cols_100"></a> |
-| 10,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_10000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_10000.png" width="420" alt="time_vs_samples_cols_10000"></a> |
-| 100,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100000.png" width="420" alt="time_vs_samples_cols_100000"></a> |
-
-**Time vs column count (fixed number of samples)**
-
-| Samples | Plot |
-|---:|:---|
-| 1 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1.png" width="420" alt="time_vs_columns_samples_1"></a> |
-| 10 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10.png" width="420" alt="time_vs_columns_samples_10"></a> |
-| 100 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100.png" width="420" alt="time_vs_columns_samples_100"></a> |
-| 1,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png" width="420" alt="time_vs_columns_samples_1000"></a> |
-| 100,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100000.png" width="420" alt="time_vs_columns_samples_100000"></a> |
-| 1,000,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000000.png" width="420" alt="time_vs_columns_samples_1000000"></a> |
-| 10,000,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10000000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10000000.png" width="420" alt="time_vs_columns_samples_10000000"></a> |
-
-</details>
-<!-- BENCHMARKS:END -->
+`--publish` adds a separate versioned thread-scaling gallery under
+`docs/benchmarks/thread_sweeps/<run-id>/` without replacing the existing
+main benchmark gallery. See [BENCHMARKS.md](BENCHMARKS.md) for test shape
+selection and interpretation caveats.
 
 ## License
 

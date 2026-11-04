@@ -155,3 +155,73 @@ A semilog-x plot can be useful for a narrower time range, but the full row-count
 - Polars and pandas may differ in allocation behavior, especially at 100,000 columns; record versions and CPU thread counts when comparing results.
 - The generated file repeats several deterministic numeric row patterns; real Stan models may have different string length distributions, numeric extremes, and value entropy. Also benchmark real CmdStan output files.
 - Benchmark results should never be used as claimed speedups until the native extension has passed correctness tests on the target platform.
+
+## Thread-scaling and file-shape throughput benchmark
+
+The main `benchmarks.run` benchmark measures each method once per case using a
+single `--threads N` value. For **thread scaling** use a separate run so baseline
+methods are not measured 16 times for no benefit.
+
+```cmd
+conda activate lumo
+python -m benchmarks.thread_sweep --dry-run
+python -m benchmarks.thread_sweep --profile quick --threads 1 2 4 8 16 --repetitions 7 --warmups 1
+python -m benchmarks.plot_threads --format png svg
+python -m benchmarks.publish_threads
+```
+
+The thread sweep tests **Rust parallel mmap** and **Polars** with identical
+thread counts. It also measures Rust buffered, pandas, StanIO and NumPy
+`loadtxt` once per file shape as reference baselines. Baselines follow each
+library's normal behavior; they are not claimed to be fully CPU single-threaded.
+Run `--all-threads` for 1 through 16, or select any subset with
+`--threads 1 4 8 12 16`. For an individual file shape specify
+`--case 100000x100` (repeat this flag for multiple files).
+
+The default **quick** profile uses six CSV shapes with 1M and 10M numerical
+values at 10, 1,000, and 100,000 columns. This covers long, intermediate and
+extremely wide files at nearly equal numeric payload sizes. The **full**
+profile adds 100M-value cases and intermediate column counts (1, 10, 100,
+1,000, 10,000, 100,000), when within free RAM, disk and per-fixture limits.
+
+| Shape (draws x columns) | Values | Primary question |
+|---|---:|---|
+| 1,000,000 x 10 | 10M | Long, narrow rows; per-record overhead |
+| 10,000 x 1,000 | 10M | Moderate shape; balanced work |
+| 100 x 100,000 | 10M | Extremely wide header and per-column overhead |
+| 10,000,000 x 10 | 100M | Larger long-file throughput (full, budget permitting) |
+| 1,000 x 100,000 | 100M | Larger wide-file throughput (full, budget permitting) |
+
+Throughput **MiB/s = actual CSV file size / parse time**. Parsing time excludes
+subprocess startup and import, but includes output allocation and conversion.
+Other figures use a fixed number of numerical cells while changing the number
+of columns, making **shape-related overhead** visible. Repeated reader timings
+are aggregated using medians. Filesystem caches are not cleared. These are
+mostly warm-cache comparisons, not cold NVMe I/O throughput benchmarks.
+
+Outputs are independent of the main benchmark:
+
+```text
+benchmark_results/thread_sweep/
+    plan.json
+    results.jsonl
+    warmups.jsonl
+    summary.csv
+    plots/
+        throughput_vs_threads_1000000x10.png
+        throughput_vs_file_size_cols_10.png
+        throughput_vs_columns_values_10000000.png
+```
+
+To publish results to README with a versioned snapshot, use
+`python -m benchmarks.thread_sweep --publish` or
+`python -m benchmarks.publish_threads`. Publication requires at least three
+successful repetitions per configuration; single measurements are unsuitable
+for a public throughput comparison. Commit the changed README and the new
+`docs/benchmarks/thread_sweeps` folder afterwards.
+
+**Recommended interpretation:** Compare Rust(1) with Polars(1), then Rust(8)
+with Polars(8). Compare the best multi-threaded options against pandas/StanIO
+normal behavior separately, since those libraries do not expose an equivalent
+thread setting in this runner. Never assume 16 threads are faster than 8;
+that depends on file shape, storage/cache behavior and memory bandwidth.
