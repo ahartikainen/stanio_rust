@@ -1,0 +1,296 @@
+{
+  "resources": {
+    "run_id": "20261104T200436Z-f6eec3",
+    "profile": "full",
+    "free_ram_gib": 105.24,
+    "free_disk_gib": 90.55,
+    "ram_fraction": 0.5,
+    "disk_fraction": 0.3,
+    "max_file_mib": 4096,
+    "cases": 17,
+    "skipped_cases": 0,
+    "configurations": 14,
+    "planned_process_runs": 1904,
+    "threads_tested": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "repetitions": 7,
+    "warmups": 1,
+    "seed": 20261104,
+    "cache_protocol": "warm-oriented (no OS page-cache flush)"
+  },
+  "environment": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "python": "3.12.9",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "logical_cores": 32,
+    "physical_cores": 24,
+    "git_commit": "874b41dc83247a219c4294e64c565d176ea1c928",
+    "packages": {
+      "stanio_rust": "0.2.1",
+      "numpy": "2.5.4",
+      "pandas": "3.1.0",
+      "polars": "2.1.0",
+      "stanio": "0.5.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "configurations": [
+    {
+      "method": "staniorust_mmap_parallel",
+      "threads": 1
+    },
+    {
+      "method": "staniorust_mmap_parallel",
+      "threads": 2
+    },
+    {
+      "method": "staniorust_mmap_parallel",
+      "threads": 4
+    },
+    {
+      "method": "staniorust_mmap_parallel",
+      "threads": 8
+    },
+    {
+      "method": "staniorust_mmap_parallel",
+      "threads": 16
+    },
+    {
+      "method": "polars",
+      "threads": 1
+    },
+    {
+      "method": "polars",
+      "threads": 2
+    },
+    {
+      "method": "polars",
+      "threads": 4
+    },
+    {
+      "method": "polars",
+      "threads": 8
+    },
+    {
+      "method": "polars",
+      "threads": 16
+    },
+    {
+      "method": "staniorust_buffered",
+      "threads": null
+    },
+    {
+      "method": "pandas",
+      "threads": null
+    },
+    {
+      "method": "stanio",
+      "threads": null
+    },
+    {
+      "method": "numpy_loadtxt",
+      "threads": null
+    }
+  ],
+  "cases": [
+    {
+      "rows": 1000000,
+      "columns": 100,
+      "shape": [
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 1600003524,
+      "output_bytes": 800000000,
+      "label": "very long"
+    },
+    {
+      "rows": 100,
+      "columns": 10000,
+      "shape": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 16251024,
+      "output_bytes": 8000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 10000,
+      "columns": 100,
+      "shape": [
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 16003524,
+      "output_bytes": 8000000,
+      "label": "very long"
+    },
+    {
+      "rows": 100000,
+      "columns": 1000,
+      "shape": [
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 1600026024,
+      "output_bytes": 800000000,
+      "label": "very long"
+    },
+    {
+      "rows": 100000,
+      "columns": 100,
+      "shape": [
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 160003524,
+      "output_bytes": 80000000,
+      "label": "very long"
+    },
+    {
+      "rows": 10000000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 1600001274,
+      "output_bytes": 800000000,
+      "label": "very long"
+    },
+    {
+      "rows": 10000,
+      "columns": 10000,
+      "shape": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 1600251024,
+      "output_bytes": 800000000,
+      "label": "wide+long"
+    },
+    {
+      "rows": 100000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 16001274,
+      "output_bytes": 8000000,
+      "label": "very long"
+    },
+    {
+      "rows": 100,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 162501024,
+      "output_bytes": 80000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 1000,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 1602501024,
+      "output_bytes": 800000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 1000,
+      "columns": 1000,
+      "shape": [
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 16026024,
+      "output_bytes": 8000000,
+      "label": "wide+long"
+    },
+    {
+      "rows": 1000000,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 16001049,
+      "output_bytes": 8000000,
+      "label": "very long"
+    },
+    {
+      "rows": 10000,
+      "columns": 1000,
+      "shape": [
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 160026024,
+      "output_bytes": 80000000,
+      "label": "wide+long"
+    },
+    {
+      "rows": 1000000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 160001274,
+      "output_bytes": 80000000,
+      "label": "very long"
+    },
+    {
+      "rows": 10,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 18501024,
+      "output_bytes": 8000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 1000,
+      "columns": 10000,
+      "shape": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 160251024,
+      "output_bytes": 80000000,
+      "label": "wide+long"
+    },
+    {
+      "rows": 10000000,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 160001049,
+      "output_bytes": 80000000,
+      "label": "very long"
+    }
+  ],
+  "skips": []
+}

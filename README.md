@@ -307,6 +307,193 @@ inspect its resource and subprocess budgets before starting it.
 main benchmark gallery. See [BENCHMARKS.md](BENCHMARKS.md) for test shape
 selection and interpretation caveats.
 
+<!-- BENCHMARKS:START -->
+### Measured performance comparisons
+
+**Run:** `20261104T173933Z-bfdc6d` · **Minimum successful repeats:** 3 · **Scheduled repeats:** 15 · **Warmups:** 1 · **Random seed:** 20261104
+
+**Environment:** Windows-11-10.0.26300-SP0, Python 3.12.9, 8 configured Rust threads.
+
+Times are the median of independent subprocess runs; shaded bands show the interquartile range (25th–75th percentile). Only measured configurations with enough successful runs are shown. These are warm-cache-oriented measurements, **not** cold-disk benchmarks.
+
+[Methodology and environment](docs/benchmarks/runs/20261104T173933Z-bfdc6d/METHOD.md) · [All summary results (CSV)](docs/benchmarks/runs/20261104T173933Z-bfdc6d/summary.csv)
+
+| Fixed columns — time vs samples | Fixed samples — time vs columns |
+|:---:|:---:|
+| <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_100.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_100.png" width="420" alt="time_vs_samples_cols_100"></a> | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1000.png" width="420" alt="time_vs_columns_samples_1000"></a> |
+
+#### Representative results relative to pandas
+
+| Samples | Columns | Fastest method | Median seconds | Speedup vs pandas |
+|---:|---:|---|---:|---:|
+| 1 | 100,000 | `numpy_loadtxt` | 0.008684 | 80.21× |
+| 10 | 100,000 | `staniorust_mmap_1` | 0.03904 | 18.20× |
+| 100,000 | 10 | `staniorust_mmap_parallel` | 0.00778 | 2.81× |
+| 1,000,000 | 1 | `staniorust_mmap_parallel` | 0.01971 | 2.21× |
+| 100 | 100,000 | `staniorust_mmap_parallel` | 0.1381 | 6.50× |
+| 10,000,000 | 1 | `polars` | 0.1253 | 3.69× |
+| 1,000 | 100,000 | `staniorust_mmap_parallel` | 0.494 | 7.60× |
+| 100,000 | 1,000 | `staniorust_mmap_parallel` | 0.4648 | 8.56× |
+| 1,000,000 | 100 | `staniorust_mmap_parallel` | 0.4189 | 9.57× |
+| 10,000,000 | 10 | `staniorust_mmap_parallel` | 0.5076 | 5.25× |
+
+Speedup is pandas median time divided by the fastest method's median time for the **same file shape**. Cases with pandas timing below 10 ms are omitted from this table to avoid misleading microbenchmarks.
+
+<details>
+<summary>View all 12 benchmark comparison plots</summary>
+
+**Time vs sample count (fixed number of columns)**
+
+| Columns | Plot |
+|---:|:---|
+| 1 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_1.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_1.png" width="420" alt="time_vs_samples_cols_1"></a> |
+| 10 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_10.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_10.png" width="420" alt="time_vs_samples_cols_10"></a> |
+| 100 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_100.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_100.png" width="420" alt="time_vs_samples_cols_100"></a> |
+| 1,000 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_1000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_1000.png" width="420" alt="time_vs_samples_cols_1000"></a> |
+| 100,000 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_100000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_samples_cols_100000.png" width="420" alt="time_vs_samples_cols_100000"></a> |
+
+**Time vs column count (fixed number of samples)**
+
+| Samples | Plot |
+|---:|:---|
+| 1 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1.png" width="420" alt="time_vs_columns_samples_1"></a> |
+| 10 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_10.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_10.png" width="420" alt="time_vs_columns_samples_10"></a> |
+| 100 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_100.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_100.png" width="420" alt="time_vs_columns_samples_100"></a> |
+| 1,000 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1000.png" width="420" alt="time_vs_columns_samples_1000"></a> |
+| 100,000 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_100000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_100000.png" width="420" alt="time_vs_columns_samples_100000"></a> |
+| 1,000,000 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1000000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_1000000.png" width="420" alt="time_vs_columns_samples_1000000"></a> |
+| 10,000,000 | <a href="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_10000000.png"><img src="docs/benchmarks/runs/20261104T173933Z-bfdc6d/plots/time_vs_columns_samples_10000000.png" width="420" alt="time_vs_columns_samples_10000000"></a> |
+
+</details>
+<!-- BENCHMARKS:END -->
+
+<!-- THREAD-SWEEP:START -->
+### Thread scaling and file-shape throughput
+
+**Run:** `20261104T200436Z-f6eec3` · 7 measured repeats · 1 warmup(s) · threads [1, 2, 4, 8, 16].
+
+The plots compare **measured CSV throughput in MiB/s** (larger is better). Each method uses consistent colors; thread counts use different markers and linestyles. Methods that do not expose a worker-count setting are measured once per file, not duplicated at every count.
+
+[Methodology and environment](docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/METHOD.md) · [Summary CSV](docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/summary.csv)
+
+| Throughput vs threads | Throughput vs file size |
+|:---:|:---:|
+| <a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10x100000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10x100000.png" width="410" alt="throughput_vs_threads_10x100000"></a> | <a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_1.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_1.png" width="410" alt="throughput_vs_file_size_cols_1"></a> |
+
+**Equal-value-count comparison across file shapes**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_1000000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_1000000.png" width="410" alt="throughput_vs_columns_values_1000000"></a>
+
+<details>
+<summary>Show all 26 throughput figures</summary>
+
+**throughput vs threads 10x100000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10x100000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10x100000.png" width="410" alt="throughput_vs_threads_10x100000"></a>
+
+**throughput vs threads 100x10000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100x10000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100x10000.png" width="410" alt="throughput_vs_threads_100x10000"></a>
+
+**throughput vs threads 100x100000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100x100000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100x100000.png" width="410" alt="throughput_vs_threads_100x100000"></a>
+
+**throughput vs threads 1000x1000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000x1000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000x1000.png" width="410" alt="throughput_vs_threads_1000x1000"></a>
+
+**throughput vs threads 1000x10000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000x10000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000x10000.png" width="410" alt="throughput_vs_threads_1000x10000"></a>
+
+**throughput vs threads 1000x100000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000x100000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000x100000.png" width="410" alt="throughput_vs_threads_1000x100000"></a>
+
+**throughput vs threads 10000x100**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000x100.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000x100.png" width="410" alt="throughput_vs_threads_10000x100"></a>
+
+**throughput vs threads 10000x1000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000x1000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000x1000.png" width="410" alt="throughput_vs_threads_10000x1000"></a>
+
+**throughput vs threads 10000x10000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000x10000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000x10000.png" width="410" alt="throughput_vs_threads_10000x10000"></a>
+
+**throughput vs threads 100000x10**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100000x10.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100000x10.png" width="410" alt="throughput_vs_threads_100000x10"></a>
+
+**throughput vs threads 100000x100**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100000x100.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100000x100.png" width="410" alt="throughput_vs_threads_100000x100"></a>
+
+**throughput vs threads 100000x1000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100000x1000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_100000x1000.png" width="410" alt="throughput_vs_threads_100000x1000"></a>
+
+**throughput vs threads 1000000x1**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000000x1.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000000x1.png" width="410" alt="throughput_vs_threads_1000000x1"></a>
+
+**throughput vs threads 1000000x10**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000000x10.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000000x10.png" width="410" alt="throughput_vs_threads_1000000x10"></a>
+
+**throughput vs threads 1000000x100**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000000x100.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_1000000x100.png" width="410" alt="throughput_vs_threads_1000000x100"></a>
+
+**throughput vs threads 10000000x1**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000000x1.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000000x1.png" width="410" alt="throughput_vs_threads_10000000x1"></a>
+
+**throughput vs threads 10000000x10**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000000x10.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_threads_10000000x10.png" width="410" alt="throughput_vs_threads_10000000x10"></a>
+
+**throughput vs file size cols 1**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_1.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_1.png" width="410" alt="throughput_vs_file_size_cols_1"></a>
+
+**throughput vs file size cols 10**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_10.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_10.png" width="410" alt="throughput_vs_file_size_cols_10"></a>
+
+**throughput vs file size cols 100**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_100.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_100.png" width="410" alt="throughput_vs_file_size_cols_100"></a>
+
+**throughput vs file size cols 1000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_1000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_1000.png" width="410" alt="throughput_vs_file_size_cols_1000"></a>
+
+**throughput vs file size cols 10000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_10000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_10000.png" width="410" alt="throughput_vs_file_size_cols_10000"></a>
+
+**throughput vs file size cols 100000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_100000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_file_size_cols_100000.png" width="410" alt="throughput_vs_file_size_cols_100000"></a>
+
+**throughput vs columns values 1000000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_1000000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_1000000.png" width="410" alt="throughput_vs_columns_values_1000000"></a>
+
+**throughput vs columns values 10000000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_10000000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_10000000.png" width="410" alt="throughput_vs_columns_values_10000000"></a>
+
+**throughput vs columns values 100000000**
+
+<a href="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_100000000.png"><img src="docs/benchmarks/thread_sweeps/20261104T200436Z-f6eec3/plots/throughput_vs_columns_values_100000000.png" width="410" alt="throughput_vs_columns_values_100000000"></a>
+
+</details>
+<!-- THREAD-SWEEP:END -->
+
 ## License
 
 This project is licensed under **Apache License, Version 2.0**. See [LICENSE](LICENSE).

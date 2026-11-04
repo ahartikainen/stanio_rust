@@ -1,0 +1,378 @@
+{
+  "resources": {
+    "free_ram_gib": 105.41,
+    "free_disk_gib": 90.57,
+    "planned_cases": 20,
+    "planned_process_runs": 2240,
+    "skipped_cases": 9,
+    "methods": [
+      "staniorust_mmap_1",
+      "staniorust_mmap_parallel",
+      "staniorust_buffered",
+      "pandas",
+      "polars",
+      "stanio",
+      "numpy_loadtxt"
+    ],
+    "repetitions": 15,
+    "warmups": 1,
+    "seed": 20261104,
+    "randomize": true,
+    "threads": 8,
+    "timeout_s": 240,
+    "cache_protocol": "warm-oriented (no OS page-cache flush)",
+    "run_id": "20261104T173933Z-bfdc6d"
+  },
+  "environment": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "python": "3.12.9",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "logical_cores": 32,
+    "physical_cores": 24,
+    "git_commit": "874b41dc83247a219c4294e64c565d176ea1c928",
+    "packages": {
+      "stanio_rust": "0.2.1",
+      "numpy": "2.5.4",
+      "pandas": "3.1.0",
+      "polars": "2.1.0",
+      "stanio": "0.5.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "cases": [
+    {
+      "rows": 1000000,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 16001049,
+      "output_bytes": 8000000,
+      "label": "very long"
+    },
+    {
+      "rows": 100000,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 1601049,
+      "output_bytes": 800000,
+      "label": "very long"
+    },
+    {
+      "rows": 100,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 2649,
+      "output_bytes": 800,
+      "label": "very long"
+    },
+    {
+      "rows": 1000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 161274,
+      "output_bytes": 80000,
+      "label": "very long"
+    },
+    {
+      "rows": 10000000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 1600001274,
+      "output_bytes": 800000000,
+      "label": "very long"
+    },
+    {
+      "rows": 1000000,
+      "columns": 100,
+      "shape": [
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 1600003524,
+      "output_bytes": 800000000,
+      "label": "very long"
+    },
+    {
+      "rows": 1,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 1434,
+      "output_bytes": 80,
+      "label": "wide+long"
+    },
+    {
+      "rows": 1,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 4101024,
+      "output_bytes": 800000,
+      "label": "very wide"
+    },
+    {
+      "rows": 10,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 1209,
+      "output_bytes": 80,
+      "label": "wide+long"
+    },
+    {
+      "rows": 100,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 162501024,
+      "output_bytes": 80000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 10,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 18501024,
+      "output_bytes": 8000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 100000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 16001274,
+      "output_bytes": 8000000,
+      "label": "very long"
+    },
+    {
+      "rows": 100,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 17274,
+      "output_bytes": 8000,
+      "label": "wide+long"
+    },
+    {
+      "rows": 1000000,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 160001274,
+      "output_bytes": 80000000,
+      "label": "very long"
+    },
+    {
+      "rows": 1000,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 17049,
+      "output_bytes": 8000,
+      "label": "very long"
+    },
+    {
+      "rows": 1,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 1065,
+      "output_bytes": 8,
+      "label": "wide+long"
+    },
+    {
+      "rows": 10,
+      "columns": 10,
+      "shape": [
+        10
+      ],
+      "estimated_csv_bytes": 2874,
+      "output_bytes": 800,
+      "label": "wide+long"
+    },
+    {
+      "rows": 100000,
+      "columns": 1000,
+      "shape": [
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 1600026024,
+      "output_bytes": 800000000,
+      "label": "very long"
+    },
+    {
+      "rows": 1000,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 1602501024,
+      "output_bytes": 800000000,
+      "label": "very wide"
+    },
+    {
+      "rows": 10000000,
+      "columns": 1,
+      "shape": [],
+      "estimated_csv_bytes": 160001049,
+      "output_bytes": 80000000,
+      "label": "very long"
+    }
+  ],
+  "skips": [
+    {
+      "rows": 100000,
+      "columns": 10000,
+      "shape": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 16000251024,
+      "output_bytes": 8000000000,
+      "label": "wide+long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 100000,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 160002501024,
+      "output_bytes": 80000000000,
+      "label": "wide+long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 1000000,
+      "columns": 1000,
+      "shape": [
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 16000026024,
+      "output_bytes": 8000000000,
+      "label": "very long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 1000000,
+      "columns": 10000,
+      "shape": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 160000251024,
+      "output_bytes": 80000000000,
+      "label": "very long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 1000000,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 1600002501024,
+      "output_bytes": 800000000000,
+      "label": "wide+long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 10000000,
+      "columns": 100,
+      "shape": [
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 16000003524,
+      "output_bytes": 8000000000,
+      "label": "very long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 10000000,
+      "columns": 1000,
+      "shape": [
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 160000026024,
+      "output_bytes": 80000000000,
+      "label": "very long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 10000000,
+      "columns": 10000,
+      "shape": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "estimated_csv_bytes": 1600000251024,
+      "output_bytes": 800000000000,
+      "label": "very long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    },
+    {
+      "rows": 10000000,
+      "columns": 100000,
+      "shape": [
+        10,
+        10,
+        10,
+        100
+      ],
+      "estimated_csv_bytes": 16000002501024,
+      "output_bytes": 8000000000000,
+      "label": "very long",
+      "status": "skipped",
+      "reason": "per-file fixture limit"
+    }
+  ]
+}
