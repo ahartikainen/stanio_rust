@@ -8,7 +8,7 @@
 - **Python:** 3.10+
 - **Build:** [maturin](https://www.maturin.rs/) + Rust + a compatible native linker
 
-> **Validation status (2026-11-04):** This is a full *source implementation candidate*, not a published or compiled release. Python wrapper tests and the benchmark planning tests pass. The current execution environment has no `rustc`, `cargo`, or `maturin` and cannot reach Rust's distribution server, so the native extension, native integration tests, and Rust performance have **not** been built or verified here. CI contains a Rust build/test matrix to perform that validation in a Rust-enabled environment. Treat native speedups as hypotheses until measured.
+> **Validation status (2026-11-04):** CI has successfully built the native extension and the latest reported test suite passed. The workflow now also defines wheel-build jobs, which require a successful CI run before their artifacts can be considered verified. Performance improvements remain unverified until benchmarked on representative CmdStan files.
 
 ## Features
 
@@ -41,6 +41,30 @@ python -m pytest -q
 ```
 
 On Windows, the default Rust target expects the Microsoft C/C++ toolchain; alternatively configure a **matching GNU toolchain and linker**. Using `conda` to install maturin does not itself provide the native linker. You can also build an isolated wheel with `maturin build --release`.
+
+### Prebuilt wheels from GitHub Actions
+
+GitHub Actions builds **one `cp310-abi3` wheel per OS/architecture** (Linux x86-64,
+Windows x64, macOS Intel and macOS Apple Silicon). Thanks to PyO3's
+`abi3-py310` feature, each wheel supports standard GIL-enabled CPython
+**3.10 and newer** on its matching platform; separate builds for 3.11, 3.12,
+and so on are unnecessary. Free-threaded CPython needs separate wheel builds
+and is not supported by this wheel matrix.
+
+After a successful push or manual workflow run, open **Actions** →
+**Quality, Native Tests and Wheels** → the completed run → **Artifacts**.
+Download the artifact for your platform (`wheels-windows-amd64`,
+`wheels-linux-x86_64`, `wheels-macos-x86_64`, or `wheels-macos-arm64`),
+extract the `.whl` file, then install it with:
+
+```cmd
+python -m pip install stanio_rust-0.2.1-cp310-abi3-win_amd64.whl
+```
+
+This workflow stores downloadable artifacts for 14 days; it does **not**
+automatically publish to PyPI or create GitHub Releases. Native wheels are
+verified with an import smoke test. The separate CI test matrix runs against
+CPython 3.10–3.14 on Windows and Linux.
 
 **Format and check Python with Ruff:**
 
