@@ -494,6 +494,12 @@ The plots compare **measured CSV throughput in MiB/s** (larger is better). Each 
 </details>
 <!-- THREAD-SWEEP:END -->
 
+## AI Assistance
+
+This project was developed with the assistance of AI tools, including OpenAI's ChatGPT.
+AI assistance has been used throughout the development process for code generation, algorithm design, optimization, debugging, testing, and documentation.
+Development decisions, validation, and ongoing maintenance remain the responsibility of the project maintainer. AI-generated suggestions are not assumed to be correct without verification.
+
 ## License
 
 This project is licensed under **Apache License, Version 2.0**. See [LICENSE](LICENSE).
