@@ -692,7 +692,7 @@ fn mmap_read_all<'py>(py: Python<'py>, paths: Vec<String>, columns: Option<Vec<S
             let selected = to.saturating_sub(start);
             if let Some(expected) = n_draws {
                 if expected != selected {
-                    return Err(invalid(format!("chains have unequal selected draw counts: {expected} vs {selected} for {path}")));
+                    return Err(invalid(format!("chains have unequal draw counts after selection: {expected} vs {selected} for {path}")));
                 }
             } else {
                 n_draws = Some(selected);

@@ -207,6 +207,7 @@ def test_stanio_special_json_float_tokens():
     [
         ("CSV headers differ: chain.csv", "Headers do not match"),
         ("chains have unequal selected draw counts: 10 vs 9", "must have the same shape"),
+        ("chains have unequal draw counts after selection: 10 vs 9", "must have the same shape"),
         ("CSV record has 7 fields; expected 8", "must have the same shape"),
         ("expected 8 numeric values on line 50, got 7", "must have the same shape"),
     ],

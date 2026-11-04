@@ -77,10 +77,11 @@ def test_missing_column(csv_files):
         read_csv(csv_files[:1], columns=["not_a_parameter"])
 
 
-def test_unequal_chains(csv_files):
+@pytest.mark.parametrize("engine", ["mmap", "buffered"])
+def test_unequal_chains(csv_files, engine):
     csv_files[1].write_text(csv_files[1].read_text() + "-3,2,1,2,1,2,3,4\n")
     with pytest.raises(ValueError, match="unequal draw counts"):
-        read_csv(csv_files)
+        read_csv(csv_files, engine=engine)
 
 
 def test_thinning_and_nonfinite_values(tmp_path):

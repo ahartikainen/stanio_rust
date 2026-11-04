@@ -227,7 +227,7 @@ def _read_numpy_buffered(
         arrays.append(_combine_arrays(selected_parts(parts), len(names), limit_bytes))
     lengths = [len(arr) for arr in arrays]
     if len(set(lengths)) > 1:
-        raise ValueError(f"chains have unequal selected draw counts: {lengths}")
+        raise ValueError(f"chains have unequal draw counts after selection: {lengths}")
     total_bytes = sum(arr.nbytes for arr in arrays)
     if limit_bytes is not None and total_bytes * 2 > limit_bytes:
         raise MemoryError("stacking chains exceeds free-RAM budget; use iter_csv")
@@ -344,7 +344,7 @@ def read_csv(
         if first is None:
             names = open_csv(files[0], engine=engine).columns(selected)
             return _frame({name: np.empty(0) for name in names}, "pandas", 1, 0, False)
-        return pd.concat(chain([first], frames), ignore_index=True, copy=False)
+        return pd.concat(chain([first], frames), ignore_index=True)
     import polars as pl
 
     if first is None:
