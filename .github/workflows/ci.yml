@@ -4,6 +4,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -108,3 +110,56 @@ jobs:
           path: dist/*.whl
           if-no-files-found: error
           retention-days: 14
+
+  # A published GitHub Release triggers a fresh wheel build from its tag.
+  # Upload only if the tests and every platform wheel succeeded.
+  release-wheels:
+    name: Attach wheels to GitHub Release
+    if: github.event_name == 'release'
+    needs: [lint, test, upstream-stanio, wheels]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download wheels built by this workflow run
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify all four platform wheels match the release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PYCODE'
+          import os
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          version = tag.removeprefix("v")
+          wheels = sorted(Path("dist").glob("*.whl"))
+          if len(wheels) != 4:
+              raise SystemExit(f"Expected 4 wheels, found {len(wheels)}: {wheels}")
+          if not all(w.name.startswith(f"stanio_rust-{version}-cp310-abi3-") for w in wheels):
+              raise SystemExit(f"Wheel versions/ABI do not match release tag {tag}: {wheels}")
+
+          names = [w.name for w in wheels]
+          platforms = {
+              "linux-x86_64": lambda n: "manylinux" in n and "x86_64" in n,
+              "windows-amd64": lambda n: n.endswith("win_amd64.whl"),
+              "macos-x86_64": lambda n: "macosx" in n and "x86_64" in n,
+              "macos-arm64": lambda n: "macosx" in n and "arm64" in n,
+          }
+          for platform, match in platforms.items():
+              if sum(match(name) for name in names) != 1:
+                  raise SystemExit(f"Expected one wheel for {platform}: {names}")
+          print("Verified wheels for release", tag, *names, sep="\n  ")
+          PYCODE
+
+      - name: Attach wheels to the published release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/*.whl
+          fail_on_unmatched_files: true
