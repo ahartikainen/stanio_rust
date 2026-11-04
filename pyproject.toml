@@ -1,0 +1,53 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "stanio_rust"
+version = "0.2.0"
+description = "Fast low-memory CmdStan CSV and Stan JSON I/O using Rust, mmap and parallel parsing"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{name = "stanio_rust contributors"}]
+keywords = ["stan", "cmdstan", "cmdstanpy", "rust", "mmap", "statistics"]
+dependencies = ["numpy>=1.26", "psutil>=5.9"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+pandas = ["pandas>=2.1"]
+polars = ["polars>=1.0"]
+dask = ["pandas>=2.1", "dask[dataframe]>=2024.1"]
+cloud = ["fsspec>=2024.1"]
+benchmark = [
+    "pandas>=2.1", "polars>=1.0", "matplotlib>=3.7", "psutil>=5.9",
+    "stanio>=0.5", "cmdstanpy>=1.2",
+]
+test = ["pytest>=8", "pandas>=2.1", "polars>=1.0", "dask[dataframe]>=2024.1", "fsspec>=2024.1"]
+dev = ["ruff>=0.11", "pytest>=8", "maturin>=1.8,<2"]
+
+[tool.maturin]
+module-name = "staniorust._native"
+python-source = "python"
+features = ["pyo3/extension-module"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "target", "benchmark_results"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B018"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
