@@ -21,6 +21,8 @@ from operator import attrgetter
 from pathlib import Path
 from statistics import median
 
+from benchmarks._stats import percentile
+
 # Consistent, color-vision-friendly colors; redundant marker and dash encodings.
 METHOD_STYLES = {
     "staniorust_mmap_parallel": ("#0072B2", "-", "o", "Rust mmap (parallel)"),
@@ -44,6 +46,9 @@ class Measurement:
     columns: int
     method: str
     seconds: float
+    p25: float | None = None
+    p75: float | None = None
+    repetitions: int = 1
 
 
 def load_results(path: Path, metric: str = "parse_time_s") -> list[Measurement]:
@@ -58,7 +63,7 @@ def load_results(path: Path, metric: str = "parse_time_s") -> list[Measurement]:
             if not line.strip():
                 continue
             record = json.loads(line)
-            if record.get("status") != "ok":
+            if record.get("status") != "ok" or record.get("phase", "measure") != "measure":
                 continue
             if metric not in record:
                 raise ValueError(f"Missing {metric!r} on line {line_number} of {path}")
@@ -78,7 +83,15 @@ def load_results(path: Path, metric: str = "parse_time_s") -> list[Measurement]:
     if not samples:
         raise ValueError(f"No successful measurements with positive {metric} in {path}")
     return [
-        Measurement(rows, cols, method, median(times))
+        Measurement(
+            rows,
+            cols,
+            method,
+            median(times),
+            percentile(times, 0.25),
+            percentile(times, 0.75),
+            len(times),
+        )
         for (rows, cols, method), times in sorted(samples.items())
     ]
 
@@ -164,8 +177,9 @@ def create_plots(
             if not series:
                 continue
             color, linestyle, marker, label = styles[method]
+            xs = [x(m) for m in series]
             ax.plot(
-                [x(m) for m in series],
+                xs,
                 [m.seconds for m in series],
                 color=color,
                 linestyle=linestyle,
@@ -176,6 +190,15 @@ def create_plots(
                 linewidth=2.0,
                 label=label,
             )
+            if any(m.repetitions >= 3 for m in series):
+                ax.fill_between(
+                    xs,
+                    [m.p25 if m.p25 is not None else m.seconds for m in series],
+                    [m.p75 if m.p75 is not None else m.seconds for m in series],
+                    color=color,
+                    alpha=0.16,
+                    linewidth=0,
+                )
             plotted_methods += 1
 
         ax.set_xscale("log")
@@ -187,7 +210,7 @@ def create_plots(
             if metric == "time_s"
             else "Parse + conversion time (seconds)"
         )
-        ax.set_title(title)
+        ax.set_title(title + " | median (IQR shading for >=3 repeats)")
         ax.grid(visible=True, which="major", alpha=0.32)
         ax.grid(visible=True, which="minor", alpha=0.10)
         ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), frameon=False)

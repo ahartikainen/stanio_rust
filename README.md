@@ -240,12 +240,70 @@ See [BENCHMARKS.md](BENCHMARKS.md) for the experiment matrix, realistic resource
 
 ```cmd
 python -m benchmarks.run --dry-run
-python -m benchmarks.run --profile quick
+python -m benchmarks.run --profile quick --repetitions 7 --warmups 1
+python -m benchmarks.run --profile quick --publish  # also update README gallery
 python -m benchmarks.run --profile full --ram-fraction 0.4 --max-file-mib 8192
 python -m benchmarks.run --plot-only
+python -m benchmarks.publish  # versioned gallery + performance summary in README
 ```
 
-Results are saved under `benchmark_results/` as JSON Lines and standalone plots. Each plot uses **draw count on the x-axis, parse time on the y-axis, and a separate curve for each parameter-column count**. Both axes are logarithmic. A separate plot per implementation avoids overloading one legend with both algorithms and widths.
+Results are saved under `benchmark_results/` as JSON Lines, a `summary.csv` of repeated measurements, and standalone plots. Benchmarking now defaults to seven measured runs in a randomized balanced order plus one warmup per method/case; figures show the median and interquartile spread. Run `python -m benchmarks.publish` to generate a versioned, clickable README gallery of only sufficiently repeated measurements. Each plot uses **draw count on the x-axis, parse time on the y-axis, and a separate curve for each parameter-column count**. Both axes are logarithmic. A separate plot per implementation avoids overloading one legend with both algorithms and widths.
+
+<!-- BENCHMARKS:START -->
+### Measured performance comparisons
+
+**Run:** `20261104T142049Z-b0c237` · **Minimum successful repeats:** 3 · **Scheduled repeats:** 15 · **Warmups:** 1 · **Random seed:** 20261104
+
+**Environment:** Windows-11-10.0.26300-SP0, Python 3.12.13, 8 configured Rust threads.
+
+Times are the median of independent subprocess runs; shaded bands show the interquartile range (25th–75th percentile). Only measured configurations with enough successful runs are shown. These are warm-cache-oriented measurements, **not** cold-disk benchmarks.
+
+[Methodology and environment](docs/benchmarks/runs/20261104T142049Z-b0c237/METHOD.md) · [All summary results (CSV)](docs/benchmarks/runs/20261104T142049Z-b0c237/summary.csv)
+
+| Fixed columns — time vs samples | Fixed samples — time vs columns |
+|:---:|:---:|
+| <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png" width="420" alt="time_vs_samples_cols_100"></a> | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png" width="420" alt="time_vs_columns_samples_1000"></a> |
+
+#### Representative results relative to pandas
+
+| Samples | Columns | Fastest method | Median seconds | Speedup vs pandas |
+|---:|---:|---|---:|---:|
+| 1 | 100,000 | `numpy_loadtxt` | 0.01028 | 89.28× |
+| 10 | 100,000 | `numpy_loadtxt` | 0.06573 | 14.11× |
+| 1,000,000 | 1 | `pandas` | 0.04708 | 1.00× |
+| 100 | 100,000 | `numpy_loadtxt` | 0.6214 | 1.85× |
+| 1,000 | 10,000 | `pandas` | 0.3907 | 1.00× |
+| 100,000 | 100 | `pandas` | 0.3807 | 1.00× |
+| 10,000,000 | 1 | `pandas` | 0.4476 | 1.00× |
+
+Speedup is pandas median time divided by the fastest method's median time for the **same file shape**. Cases with pandas timing below 10 ms are omitted from this table to avoid misleading microbenchmarks.
+
+<details>
+<summary>View all 11 benchmark comparison plots</summary>
+
+**Time vs sample count (fixed number of columns)**
+
+| Columns | Plot |
+|---:|:---|
+| 1 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_1.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_1.png" width="420" alt="time_vs_samples_cols_1"></a> |
+| 100 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100.png" width="420" alt="time_vs_samples_cols_100"></a> |
+| 10,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_10000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_10000.png" width="420" alt="time_vs_samples_cols_10000"></a> |
+| 100,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_samples_cols_100000.png" width="420" alt="time_vs_samples_cols_100000"></a> |
+
+**Time vs column count (fixed number of samples)**
+
+| Samples | Plot |
+|---:|:---|
+| 1 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1.png" width="420" alt="time_vs_columns_samples_1"></a> |
+| 10 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10.png" width="420" alt="time_vs_columns_samples_10"></a> |
+| 100 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100.png" width="420" alt="time_vs_columns_samples_100"></a> |
+| 1,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000.png" width="420" alt="time_vs_columns_samples_1000"></a> |
+| 100,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_100000.png" width="420" alt="time_vs_columns_samples_100000"></a> |
+| 1,000,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_1000000.png" width="420" alt="time_vs_columns_samples_1000000"></a> |
+| 10,000,000 | <a href="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10000000.png"><img src="docs/benchmarks/runs/20261104T142049Z-b0c237/plots/time_vs_columns_samples_10000000.png" width="420" alt="time_vs_columns_samples_10000000"></a> |
+
+</details>
+<!-- BENCHMARKS:END -->
 
 ## License
 

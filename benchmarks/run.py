@@ -16,15 +16,23 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
+import platform
+import random
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 
 import psutil
+
+from benchmarks._stats import percentile, write_summary
 
 ROWS = (1, 10, 100, 1_000, 100_000, 1_000_000, 10_000_000)
 COLS = (1, 10, 100, 1_000, 10_000, 100_000)
@@ -265,8 +273,15 @@ def subprocess_benchmark(
         str(threads),
     ]
     started = time.perf_counter()
+    environment = os.environ.copy()
+    environment["POLARS_MAX_THREADS"] = str(threads)
     proc = subprocess.Popen(
-        cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        cmd,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
     )
     monitor = psutil.Process(proc.pid)
     peak = 0
@@ -305,44 +320,139 @@ def subprocess_benchmark(
     }
 
 
-def render_plots(records: list[dict], destination: Path) -> list[Path]:
-    """Draw time-vs-samples log-log curves, one line per column count.
+def verify_result_shape(result: dict, case: Case) -> dict:
+    """Exclude readers that did not actually return the requested number of cells."""
+    if result.get("status") != "ok" or result.get("result_shape") is None:
+        return result
+    try:
+        cells = math.prod(result["result_shape"])
+    except (TypeError, ValueError):
+        cells = -1
+    expected = case.rows * case.columns
+    if cells != expected:
+        return {
+            **result,
+            "status": "invalid",
+            "error": f"reader returned {cells} numeric values; expected {expected}",
+        }
+    return result
 
-    Figures are separated by implementation so the legend encodes only one
-    variable (column count), as requested. Time is log-scaled because sample
-    counts span seven orders of magnitude; this shows scaling slopes clearly.
+
+def balanced_method_rounds(
+    methods: list[str], repetitions: int, rng: random.Random, *, randomize: bool = True
+) -> list[list[str]]:
+    """Randomize reader identities while balancing their positions across rounds.
+
+    Within every full block of ``len(methods)`` rounds, every method occupies
+    each execution position exactly once. This limits cache/thermal order bias.
     """
+    if not methods or repetitions < 1:
+        raise ValueError("At least one method and one repetition are required")
+    if not randomize:
+        return [list(methods) for _ in range(repetitions)]
+    rounds: list[list[str]] = []
+    group: list[str] = []
+    for index in range(repetitions):
+        if index % len(methods) == 0:
+            group = list(methods)
+            rng.shuffle(group)
+        offset = index % len(methods)
+        rounds.append(group[offset:] + group[:offset])
+    return rounds
+
+
+def environment_details() -> dict:
+    """Capture enough context to interpret and reproduce timing results."""
+    packages = ("stanio_rust", "numpy", "pandas", "polars", "stanio", "psutil")
+    versions = {}
+    for name in packages:
+        try:
+            versions[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            versions[name] = None
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=3,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        commit = None
+    return {
+        "os": platform.platform(),
+        "python": platform.python_version(),
+        "processor": platform.processor(),
+        "logical_cores": psutil.cpu_count(logical=True),
+        "physical_cores": psutil.cpu_count(logical=False),
+        "git_commit": commit,
+        "packages": versions,
+    }
+
+
+def render_plots(records: list[dict], destination: Path) -> list[Path]:
+    """Plot repeat medians with interquartile bands for each method and width."""
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     destination.mkdir(parents=True, exist_ok=True)
-    paths = []
-    methods = sorted({record["method"] for record in records if record.get("status") == "ok"})
+    methods = sorted({r["method"] for r in records if r.get("status") == "ok"})
+    written = []
     for method in methods:
-        subset = [r for r in records if r.get("status") == "ok" and r["method"] == method]
+        relevant = [
+            r
+            for r in records
+            if r.get("status") == "ok"
+            and r.get("phase", "measure") == "measure"
+            and r["method"] == method
+        ]
         for metric, ylabel, suffix in (
             ("parse_time_s", "Parse + conversion time (s)", "time"),
             ("peak_rss_mib", "Peak process RSS (MiB)", "rss"),
         ):
             fig, ax = plt.subplots(figsize=(10, 6))
-            for cols in sorted({r["columns"] for r in subset}):
-                series = sorted(
-                    (r for r in subset if r["columns"] == cols), key=lambda r: r["rows"]
-                )
-                xs = [r["rows"] for r in series]
-                ys = [r[metric] for r in series]
-                if xs and all(x > 0 for x in ys):
-                    ax.loglog(xs, ys, marker="o", label=f"{cols:,} columns")
+            for cols in sorted({r["columns"] for r in relevant}):
+                groups: dict[int, list[float]] = {}
+                for row in relevant:
+                    value = row.get(metric)
+                    if row["columns"] != cols or value is None or not math.isfinite(value):
+                        continue
+                    if value <= 0:
+                        continue
+                    groups.setdefault(row["rows"], []).append(value)
+                xs = sorted(groups)
+                if xs:
+                    ys = [percentile(groups[x], 0.5) for x in xs]
+                    line = ax.loglog(xs, ys, marker="o", label=f"{cols:,} columns")[0]
+                    if any(len(groups[x]) >= 3 for x in xs):
+                        lower = [percentile(groups[x], 0.25) for x in xs]
+                        upper = [percentile(groups[x], 0.75) for x in xs]
+                        ax.fill_between(xs, lower, upper, color=line.get_color(), alpha=0.14)
             ax.set_xlabel("CmdStan samples per chain (draws)")
             ax.set_ylabel(ylabel)
-            ax.set_title(f"{method}: {ylabel} vs draws (log-log)")
+            ax.set_title(f"{method}: {ylabel} vs draws (median, IQR)")
             ax.grid(True, which="both", alpha=0.25)
             ax.legend(title="Flat parameter columns", loc="best", fontsize=8, ncol=2)
             fig.tight_layout()
             output = destination / f"{method}_{suffix}_loglog.png"
             fig.savefig(output, dpi=160)
             plt.close(fig)
-            paths.append(output)
-    return paths
+            written.append(output)
+    return written
+
+
+def regenerate_outputs(records: list[dict], destination: Path) -> None:
+    """Refresh every plot family and the summary without rerunning readers."""
+    from benchmarks.plot_grouped import create_plots, load_results
+
+    write_summary(records, destination / "summary.csv")
+    render_plots(records, destination / "plots")
+    grouped = load_results(destination / "results.jsonl")
+    create_plots(grouped, destination / "plots_grouped")
 
 
 def _args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -359,10 +469,24 @@ def _args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-file-mib", type=int, default=None)
     parser.add_argument("--max-cases", type=int, default=None)
     parser.add_argument("--timeout", type=int, default=240)
+    parser.add_argument("--repetitions", type=int, default=7, help="Measured rounds per case")
+    parser.add_argument("--warmups", type=int, default=1, help="Unmeasured runs per method/case")
+    parser.add_argument("--seed", type=int, default=20261104, help="Recorded scheduling seed")
+    parser.add_argument(
+        "--randomize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Randomize case order and balance reader positions across measured rounds",
+    )
     parser.add_argument("--output", type=Path, default=Path("benchmark_results"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--plot-only", action="store_true")
     parser.add_argument("--keep-files", action="store_true")
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="After measurement, snapshot validated plots and update README",
+    )
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--path", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--method", choices=METHODS, help=argparse.SUPPRESS)
@@ -370,19 +494,30 @@ def _args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Run the CLI, including subprocess worker mode and plot-only regeneration."""
+    """Run resource-bounded, randomized repeated measurements."""
     args = _args(argv)
     if args.worker:
         print(json.dumps(run_worker(args.path, args.method, args.threads)))
         return
     if not 0 < args.ram_fraction <= 1 or not 0 < args.disk_fraction <= 1:
         raise ValueError("RAM and disk fractions must be between 0 and 1")
+    if args.repetitions < 1 or args.warmups < 0:
+        raise ValueError("repetitions must be >= 1 and warmups must be >= 0")
+    if args.publish and args.dry_run:
+        raise ValueError("Cannot publish a dry-run plan")
+    if len(set(args.methods)) != len(args.methods):
+        raise ValueError("Methods must not be repeated")
+    if args.threads < 1 or args.timeout < 1:
+        raise ValueError("threads and timeout must be >= 1")
+
     args.output.mkdir(parents=True, exist_ok=True)
     results_file = args.output / "results.jsonl"
+    warmups_file = args.output / "warmups.jsonl"
     if args.plot_only:
-        existing = [json.loads(row) for row in results_file.read_text().splitlines()]
-        print("Plots:", *render_plots(existing, args.output / "plots"), sep="\n  ")
+        records = [json.loads(row) for row in results_file.read_text().splitlines() if row]
+        regenerate_outputs(records, args.output)
         return
+
     free_ram = budgeted_free_ram()
     free_disk = shutil.disk_usage(args.output).free
     max_file = args.max_file_mib or (256 if args.profile == "quick" else 4096)
@@ -396,42 +531,57 @@ def main(argv: list[str] | None = None) -> None:
         disk_fraction=args.disk_fraction,
     )
     max_cases = args.max_cases or (28 if args.profile == "quick" else len(allowed))
-    # Round-robin across sample counts: quick runs must include long files,
-    # not only the first few short-row combinations.
-    buckets = {}
-    for n in args.rows:
-        bucket = [case for case in allowed if case.rows == n]
-        # Alternate narrow and wide cases so quick runs cover 100k-column
-        # tensors as well as long, single-column series.
+    buckets: dict[int, list[Case]] = {}
+    for count in args.rows:
+        bucket = [case for case in allowed if case.rows == count]
         reordered = []
         while bucket:
             reordered.append(bucket.pop(0))
             if bucket:
                 reordered.append(bucket.pop(-1))
-        buckets[n] = reordered
+        buckets[count] = reordered
     spread = []
     while len(spread) < max_cases and any(buckets.values()):
-        for n in args.rows:
-            if buckets[n] and len(spread) < max_cases:
-                spread.append(buckets[n].pop(0))
+        for count in args.rows:
+            if buckets[count] and len(spread) < max_cases:
+                spread.append(buckets[count].pop(0))
     allowed = spread
+
+    rng = random.Random(args.seed)
+    if args.randomize:
+        rng.shuffle(allowed)
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
     report = {
         "free_ram_gib": round(free_ram / 2**30, 2),
         "free_disk_gib": round(free_disk / 2**30, 2),
         "planned_cases": len(allowed),
+        "planned_process_runs": len(allowed)
+        * len(args.methods)
+        * (args.repetitions + args.warmups),
         "skipped_cases": len(skipped),
         "methods": args.methods,
+        "repetitions": args.repetitions,
+        "warmups": args.warmups,
+        "seed": args.seed,
+        "randomize": args.randomize,
+        "threads": args.threads,
+        "timeout_s": args.timeout,
+        "cache_protocol": "warm-oriented (no OS page-cache flush)",
+        "run_id": run_id,
     }
     print(json.dumps(report, indent=2))
-    (args.output / "plan.json").write_text(
+    plan_path = args.output / ("plan-preview.json" if args.dry_run else "plan.json")
+    plan_path.write_text(
         json.dumps(
             {
                 "resources": report,
+                "environment": environment_details(),
                 "cases": [asdict(c) for c in allowed],
                 "skips": skipped,
             },
             indent=2,
-        )
+        ),
+        encoding="utf-8",
     )
     if args.dry_run:
         for case in allowed:
@@ -440,39 +590,102 @@ def main(argv: list[str] | None = None) -> None:
                 f"{case.estimated_csv_bytes / 2**20:>8.1f} MiB | {case.shape}"
             )
         return
+
     results_file.write_text("", encoding="utf-8")
-    all_results = []
+    warmups_file.write_text("", encoding="utf-8")
+    all_results: list[dict] = []
+    sequence = 0
     with tempfile.TemporaryDirectory(prefix="staniorust-bench-") as work:
-        for case_number, case in enumerate(allowed, 1):
+        for case_index, case in enumerate(allowed, 1):
             path = Path(work) / "chain.csv"
             print(
-                f"Case {case_number}/{len(allowed)}: {case.rows:,} draws x "
-                f"{case.columns:,} columns",
+                f"Case {case_index}/{len(allowed)}: {case.rows:,} draws x {case.columns:,} columns",
                 flush=True,
             )
             actual_size = write_fixture(path, case)
-            for method in args.methods:
-                record = {
-                    **asdict(case),
-                    "method": method,
-                    "input_bytes": actual_size,
-                    **subprocess_benchmark(path, method, args.threads, args.timeout),
-                }
-                all_results.append(record)
-                with results_file.open("a", encoding="utf-8") as target:
-                    target.write(json.dumps(record) + "\n")
-                print(
-                    f"  {method:>25}: {record['status']:<8} "
-                    f"{record.get('parse_time_s', float('nan')):.4f} s",
-                    flush=True,
+            base = {**asdict(case), "input_bytes": actual_size, "run_id": run_id}
+            failed: set[str] = set()
+            with (
+                results_file.open("a", encoding="utf-8") as output,
+                warmups_file.open("a", encoding="utf-8") as warmups_output,
+            ):
+                for warmup_round in range(1, args.warmups + 1):
+                    order = list(args.methods)
+                    if args.randomize:
+                        rng.shuffle(order)
+                    for method in order:
+                        if method in failed:
+                            continue
+                        sequence += 1
+                        result = verify_result_shape(
+                            subprocess_benchmark(path, method, args.threads, args.timeout), case
+                        )
+                        record = {
+                            **base,
+                            "method": method,
+                            "phase": "warmup",
+                            "warmup": warmup_round,
+                            "sequence": sequence,
+                            **result,
+                        }
+                        warmups_output.write(json.dumps(record) + "\n")
+                        warmups_output.flush()
+                        if result["status"] != "ok":
+                            failed.add(method)
+                            failed_record = {
+                                **record,
+                                "phase": "measure",
+                                "repetition": 0,
+                                "error": f"warmup failed: {result.get('error', result['status'])}",
+                            }
+                            output.write(json.dumps(failed_record) + "\n")
+                            all_results.append(failed_record)
+
+                rounds = balanced_method_rounds(
+                    list(args.methods), args.repetitions, rng, randomize=args.randomize
                 )
+                for repetition, order in enumerate(rounds, 1):
+                    for method in order:
+                        if method in failed:
+                            continue
+                        sequence += 1
+                        result = verify_result_shape(
+                            subprocess_benchmark(path, method, args.threads, args.timeout), case
+                        )
+                        record = {
+                            **base,
+                            "method": method,
+                            "phase": "measure",
+                            "repetition": repetition,
+                            "sequence": sequence,
+                            **result,
+                        }
+                        all_results.append(record)
+                        output.write(json.dumps(record) + "\n")
+                        output.flush()
+                        print(
+                            f"  {method:>25} [{repetition}/{args.repetitions}]: "
+                            f"{record['status']:<8} "
+                            f"{record.get('parse_time_s', float('nan')):.4f} s",
+                            flush=True,
+                        )
+                        if result["status"] != "ok":
+                            failed.add(method)
             if not args.keep_files:
                 path.unlink(missing_ok=True)
             else:
                 target = args.output / f"case_{case.rows}_{case.columns}.csv"
                 shutil.move(path, target)
-    plots = render_plots(all_results, args.output / "plots")
-    print("Generated plots:", *plots, sep="\n  ")
+    if all_results and any(r.get("status") == "ok" for r in all_results):
+        regenerate_outputs(all_results, args.output)
+    else:
+        write_summary(all_results, args.output / "summary.csv")
+        print("No successful measurements to plot.")
+    print(f"Completed run {run_id}. Raw measurements: {results_file.resolve()}")
+    if args.publish:
+        from benchmarks.publish import publish
+
+        publish(args.output.resolve(), ROOT)
 
 
 if __name__ == "__main__":
