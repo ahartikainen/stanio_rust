@@ -226,3 +226,68 @@ def test_stanio_csv_compat_error_mapping(monkeypatch, message, expected):
     monkeypatch.setitem(sys.modules, "staniorust._api", fake_api)
     with pytest.raises(ValueError, match=expected):
         read_csv("chain.csv")
+
+
+@pytest.mark.parametrize(
+    ("native_shape", "stanio_shape"),
+    [
+        ((1, 1, 9), (1, 9)),
+        ((2, 1, 9), (2, 9)),
+        ((1, 1000, 9), (1, 1000, 9)),
+        ((2, 1000, 9), (2, 1000, 9)),
+        ((1, 1000, 1), (1, 1000)),
+        ((1, 1, 1), (1,)),
+        ((3, 0, 9), (3, 0)),
+    ],
+)
+def test_stanio_csv_numpy_loadtxt_shape_compatibility(monkeypatch, native_shape, stanio_shape):
+    """The compatibility reader matches np.stack(np.loadtxt(...)), not the 3D API."""
+    import sys
+    from types import ModuleType
+
+    from staniorust.csv import read_csv
+
+    values = np.arange(np.prod(native_shape), dtype=np.float64).reshape(native_shape)
+    fake_api = ModuleType("staniorust._api")
+
+    def fake_read_csv(_paths):
+        return "a,b", values
+
+    fake_api.read_csv = fake_read_csv
+    monkeypatch.setitem(sys.modules, "staniorust._api", fake_api)
+
+    header, actual = read_csv("one_chain.csv")
+    assert header == "a,b"
+    assert actual.shape == stanio_shape
+    np.testing.assert_array_equal(actual.ravel(), values.ravel())
+
+
+def test_stanio_preserve_1d_single_optimization_row_from_csv(monkeypatch):
+    """Regression for upstream test_reshape.py::test_preserve_1d."""
+    import sys
+    from types import ModuleType
+
+    from staniorust.csv import read_csv
+
+    names = (
+        "A.1.1.1,A.2.1.1,A.1.1.2,A.2.1.2,A.1.1.3,A.2.1.3,"
+        "dummy.1.1.1,dummy_tuple.1:1,dummy_tuple.1:2"
+    )
+    values = np.arange(9, dtype=np.float64).reshape(1, 1, -1)
+    fake_api = ModuleType("staniorust._api")
+
+    def fake_read_csv(_paths):
+        return names, values
+
+    fake_api.read_csv = fake_read_csv
+    monkeypatch.setitem(sys.modules, "staniorust._api", fake_api)
+
+    header, draws = read_csv("oned_opt.csv")
+    params = parse_header(header)
+    assert draws.shape == (1, 9)
+    assert params["A"].extract_reshape(draws).shape == (1, 2, 1, 3)
+    assert params["dummy"].extract_reshape(draws).shape == (1, 1, 1, 1)
+    assert params["dummy_tuple"].extract_reshape(draws).shape == (1, 1)
+    assert params["A"].extract_reshape(draws.squeeze()).shape == (2, 1, 3)
+    assert params["dummy"].extract_reshape(draws.squeeze()).shape == (1, 1, 1)
+    assert params["dummy_tuple"].extract_reshape(draws.squeeze()).shape == (1,)
